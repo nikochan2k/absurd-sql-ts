@@ -1,7 +1,7 @@
-import * as perf from 'perf-deets';
-import { getPageSize, LOCK_TYPES } from './sqlite-util';
+import { Block, FileAttr } from "./sqlite-types";
+import { getPageSize, LOCK_TYPES } from "./sqlite-util";
 
-function range(start, end, step) {
+function range(start: number, end: number, step: number) {
   let r = [];
   for (let i = start; i <= end; i += step) {
     r.push(i);
@@ -9,14 +9,18 @@ function range(start, end, step) {
   return r;
 }
 
-export function getBoundaryIndexes(blockSize, start, end) {
+export function getBoundaryIndexes(
+  blockSize: number,
+  start: number,
+  end: number
+) {
   let startC = start - (start % blockSize);
   let endC = end - 1 - ((end - 1) % blockSize);
 
   return range(startC, endC, blockSize);
 }
 
-export function readChunks(chunks, start, end) {
+export function readChunks(chunks: Block[], start: number, end: number) {
   let buffer = new ArrayBuffer(end - start);
   let bufferView = new Uint8Array(buffer);
 
@@ -25,8 +29,8 @@ export function readChunks(chunks, start, end) {
     let chunk = chunks[i];
 
     // TODO: jest has a bug where we can't do `instanceof ArrayBuffer`
-    if (chunk.data.constructor.name !== 'ArrayBuffer') {
-      throw new Error('Chunk data is not an ArrayBuffer');
+    if (chunk.data.constructor.name !== "ArrayBuffer") {
+      throw new Error("Chunk data is not an ArrayBuffer");
     }
 
     let cstart = 0;
@@ -55,65 +59,97 @@ export function readChunks(chunks, start, end) {
   return buffer;
 }
 
-export function writeChunks(bufferView, blockSize, start, end) {
+export function writeChunks(
+  bufferView: ArrayBufferView,
+  blockSize: number,
+  start: number,
+  end: number
+): Block[] {
   let indexes = getBoundaryIndexes(blockSize, start, end);
   let cursor = 0;
 
-  return indexes
-    .map(index => {
-      let cstart = 0;
-      let cend = blockSize;
-      if (start > index && start < index + blockSize) {
-        cstart = start - index;
-      }
-      if (end > index && end < index + blockSize) {
-        cend = end - index;
-      }
+  const result: Block[] = [];
+  for (const index of indexes) {
+    let cstart = 0;
+    let cend = blockSize;
+    if (start > index && start < index + blockSize) {
+      cstart = start - index;
+    }
+    if (end > index && end < index + blockSize) {
+      cend = end - index;
+    }
 
-      let len = cend - cstart;
-      let chunkBuffer = new ArrayBuffer(blockSize);
+    let len = cend - cstart;
+    let chunkBuffer = new ArrayBuffer(blockSize);
 
-      if (start > index + blockSize || end <= index) {
-        return null;
-      }
+    if (start > index + blockSize || end <= index) {
+      continue;
+    }
 
-      let off = bufferView.byteOffset + cursor;
+    let off = bufferView.byteOffset + cursor;
 
-      let available = bufferView.buffer.byteLength - off;
-      if (available <= 0) {
-        return null;
-      }
+    let available = bufferView.buffer.byteLength - off;
+    if (available <= 0) {
+      continue;
+    }
 
-      let readLength = Math.min(len, available);
+    let readLength = Math.min(len, available);
 
-      new Uint8Array(chunkBuffer).set(
-        new Uint8Array(bufferView.buffer, off, readLength),
-        cstart
-      );
-      cursor += readLength;
+    new Uint8Array(chunkBuffer).set(
+      new Uint8Array(bufferView.buffer, off, readLength),
+      cstart
+    );
+    cursor += readLength;
 
-      return {
-        pos: index,
-        data: chunkBuffer,
-        offset: cstart,
-        length: readLength
-      };
-    })
-    .filter(Boolean);
+    result.push({
+      pos: index,
+      data: chunkBuffer,
+      offset: cstart,
+      length: readLength,
+    });
+  }
+  return result;
+}
+
+export interface Reader {
+  int32(): number;
+  done(): void;
+}
+
+export interface Writer {
+  string(str: string): void;
+  finalize(): void;
+}
+
+export interface Ops {
+  writer?: Writer;
+  reader?: Reader;
+  readIfFallback?: () => Promise<FileAttr>;
+  open(): void;
+  readMeta(): FileAttr | undefined;
+  close(): void;
+  delete(): void;
+  readBlocks(positions: number[], blockSize: number): Block[];
+  writeMeta(meta: FileAttr): void;
+  writeBlocks(blocks: Block[], blockSize: number): number;
+  lock(lockType: number): boolean;
+  unlock(lockType: number): void;
 }
 
 export class File {
-  constructor(filename, ops, meta = null) {
-    this.filename = filename;
-    this.buffer = new Map();
-    this.ops = ops;
-    this.meta = meta;
-    this._metaDirty = false;
-    this.writeLock = false;
-    this.openHandles = 0;
-  }
+  public buffer = new Map<number, Block>(); // TODO
+  private _metaDirty = false;
+  public writeLock = false;
+  private _recordingLock = false;
+  public openHandles = 0;
 
-  bufferChunks(chunks) {
+  constructor(
+    public filename: string,
+    public ops: Ops,
+    public meta: FileAttr = {}
+  ) {}
+
+  bufferChunks(chunks: Block[]) {
     for (let i = 0; i < chunks.length; i++) {
       let chunk = chunks[i];
       this.buffer.set(chunk.pos, chunk);
@@ -159,7 +195,7 @@ export class File {
     this.ops.delete();
   }
 
-  load(indexes) {
+  load(indexes: number[] /* TODO */) {
     let status = indexes.reduce(
       (acc, b) => {
         let inMemory = this.buffer.get(b);
@@ -170,19 +206,22 @@ export class File {
         }
         return acc;
       },
-      { chunks: [], missing: [] }
+      { chunks: [] as Block[], missing: [] as number[] }
     );
 
-    let missingChunks = [];
+    let missingChunks: Block[] = [];
     if (status.missing.length > 0) {
-      perf.record('read-blocks');
-      missingChunks = this.ops.readBlocks(status.missing, this.meta.blockSize);
-      perf.endRecording('read-blocks');
+      missingChunks = this.ops.readBlocks(status.missing, this.meta.blockSize!);
     }
     return status.chunks.concat(missingChunks);
   }
 
-  read(bufferView, offset, length, position) {
+  read(
+    bufferView: ArrayBufferView,
+    offset: number,
+    length: number,
+    position: number
+  ) {
     // console.log('reading', this.filename, offset, length, position);
     let buffer = bufferView.buffer;
 
@@ -193,7 +232,7 @@ export class File {
       // TODO: is this right?
       return 0;
     }
-    if (position >= this.meta.size) {
+    if (position >= this.meta.size!) {
       let view = new Uint8Array(buffer, offset);
       for (let i = 0; i < length; i++) {
         view[i] = 0;
@@ -203,18 +242,18 @@ export class File {
     }
 
     position = Math.max(position, 0);
-    let dataLength = Math.min(length, this.meta.size - position);
+    let dataLength = Math.min(length, this.meta.size! - position);
 
     let start = position;
     let end = position + dataLength;
 
-    let indexes = getBoundaryIndexes(this.meta.blockSize, start, end);
+    let indexes = getBoundaryIndexes(this.meta.blockSize!, start, end);
 
     let chunks = this.load(indexes);
     let readBuffer = readChunks(chunks, start, end);
 
     if (buffer.byteLength - offset < readBuffer.byteLength) {
-      throw new Error('Buffer given to `read` is too small');
+      throw new Error("Buffer given to `read` is too small");
     }
     let view = new Uint8Array(buffer);
     view.set(new Uint8Array(readBuffer), offset);
@@ -227,7 +266,12 @@ export class File {
     return length;
   }
 
-  write(bufferView, offset, length, position) {
+  write(
+    bufferView: ArrayBufferView,
+    offset: number,
+    length: number,
+    position: number
+  ) {
     // console.log('writing', this.filename, offset, length, position);
 
     if (this.meta.blockSize == null) {
@@ -250,7 +294,7 @@ export class File {
         ![512, 1024, 2048, 4096, 8192, 16384, 32768, 65536].includes(pageSize)
       ) {
         throw new Error(
-          'File has invalid page size. (the first block of a new file must be written first)'
+          "File has invalid page size. (the first block of a new file must be written first)"
         );
       }
 
@@ -269,13 +313,11 @@ export class File {
       return 0;
     }
 
-    perf.count('writes');
-
     length = Math.min(length, buffer.byteLength - offset);
 
     let writes = writeChunks(
       new Uint8Array(buffer, offset, length),
-      this.meta.blockSize,
+      this.meta.blockSize!,
       position,
       position + length
     );
@@ -289,28 +331,27 @@ export class File {
         } else {
           state.fullWrites.push({
             pos: write.pos,
-            data: write.data
+            data: write.data,
           });
         }
         return state;
       },
-      { fullWrites: [], partialWrites: [] }
+      { fullWrites: [] as Block[], partialWrites: [] as Block[] }
     );
 
-    let reads = [];
+    let reads: Block[] = [];
     if (partialWrites.length > 0) {
-      reads = this.load(partialWrites.map(w => w.pos));
+      reads = this.load(partialWrites.map((w) => w.pos));
     }
 
-    let allWrites = fullWrites.concat(
-      reads.map(read => {
-        let write = partialWrites.find(w => w.pos === read.pos);
+    let allWrites: Block[] = fullWrites.concat(
+      reads.map((read) => {
+        let write = partialWrites.find((w) => w.pos === read.pos) as Block;
 
         // MuTatIoN!
         new Uint8Array(read.data).set(
           new Uint8Array(write.data, write.offset, write.length),
-          write.offset,
-          write.length
+          write.offset
         );
 
         return read;
@@ -319,7 +360,7 @@ export class File {
 
     this.bufferChunks(allWrites);
 
-    if (position + length > this.meta.size) {
+    if (position + length > this.meta.size!) {
       this.setattr({ size: position + length });
     }
 
@@ -334,10 +375,8 @@ export class File {
     }
   }
 
-  lock(lockType) {
-    // TODO: Perf APIs need improvement
+  lock(lockType: number) {
     if (!this._recordingLock) {
-      perf.record('locked');
       this._recordingLock = true;
     }
 
@@ -350,9 +389,8 @@ export class File {
     return false;
   }
 
-  unlock(lockType) {
+  unlock(lockType: number) {
     if (lockType === 0) {
-      perf.endRecording('locked');
       this._recordingLock = false;
     }
 
@@ -403,7 +441,7 @@ export class File {
           // about overwriting anything.
 
           let writes = [...buffer.values()];
-          let totalSize = writes.length * this.meta.blockSize;
+          let totalSize = writes.length * this.meta.blockSize!;
           let buf = new ArrayBuffer(totalSize);
           let view = new Uint8Array(buf);
 
@@ -419,7 +457,7 @@ export class File {
         }
       }
 
-      this.ops.writeBlocks([...this.buffer.values()], this.meta.blockSize);
+      this.ops.writeBlocks([...this.buffer.values()], this.meta.blockSize!);
     }
 
     if (this._metaDirty) {
@@ -439,7 +477,7 @@ export class File {
     this.buffer = new Map();
   }
 
-  setattr(attr) {
+  setattr(attr: FileAttr) {
     if (this.meta == null) {
       this.meta = {};
     }
@@ -447,21 +485,21 @@ export class File {
     // Size is the only attribute we actually persist. The rest are
     // stored in memory
 
-    if (attr.mode !== undefined) {
+    if (attr.mode != null) {
       this.meta.mode = attr.mode;
     }
 
-    if (attr.blockSize !== undefined) {
+    if (attr.blockSize != null) {
       this.meta.blockSize = attr.blockSize;
     }
 
-    if (attr.size !== undefined) {
+    if (attr.size != null) {
       this.meta.size = attr.size;
       this._metaDirty = true;
     }
   }
 
-  getattr() {
+  getattr(): FileAttr {
     return this.meta;
   }
 }

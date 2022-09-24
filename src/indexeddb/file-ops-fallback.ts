@@ -1,36 +1,43 @@
-import { LOCK_TYPES, isSafeToWrite, getPageSize } from '../sqlite-util';
-import idbReady from 'safari-14-idb-fix';
+import { LOCK_TYPES, isSafeToWrite, getPageSize } from "../sqlite-util";
+import idbReady from "safari-14-idb-fix";
+import { Block, FileAttr } from "../sqlite-types";
+import { Ops } from "../sqlite-file";
 
-function positionToKey(pos, blockSize) {
+export interface Item {
+  key: number;
+  value: ArrayBufferLike | FileAttr;
+}
+
+function positionToKey(pos: number, blockSize: number) {
   // We are forced to round because of floating point error. `pos`
   // should always be divisible by `blockSize`
   return Math.round(pos / blockSize);
 }
 
-async function openDb(name) {
+async function openDb(name: string) {
   await idbReady();
 
-  return new Promise((resolve, reject) => {
-    let req = globalThis.indexedDB.open(name, 2);
-    req.onsuccess = event => {
-      let db = event.target.result;
+  return new Promise<IDBDatabase>((resolve, reject) => {
+    const req = globalThis.indexedDB.open(name, 2);
+    req.onsuccess = (event) => {
+      const db = (event.target as any).result as IDBDatabase;
 
       db.onversionchange = () => {
-        console.log('closing because version changed');
+        console.log("closing because version changed");
         db.close();
       };
       db.onclose = () => {};
 
       resolve(db);
     };
-    req.onupgradeneeded = event => {
-      let db = event.target.result;
-      if (!db.objectStoreNames.contains('data')) {
-        db.createObjectStore('data');
+    req.onupgradeneeded = (event) => {
+      const db = (event.target as any).result as IDBDatabase;
+      if (!db.objectStoreNames.contains("data")) {
+        db.createObjectStore("data");
       }
     };
-    req.onblocked = e => console.log('blocked', e);
-    req.onerror = req.onabort = e => reject(e.target.error);
+    req.onblocked = (e) => console.log("blocked", e);
+    req.onerror = (e) => reject((e.target as any).error);
   });
 }
 
@@ -40,12 +47,10 @@ async function openDb(name) {
 // happen async; the args to `write` must be closed over so they don't
 // change
 class Persistance {
-  constructor(dbName, onFallbackFailure) {
-    this.dbName = dbName;
-    this._openDb = null;
-    this.hasAlertedFailure = false;
-    this.onFallbackFailure = onFallbackFailure;
-  }
+  private _openDb?: IDBDatabase;
+  public hasAlertedFailure = false;
+
+  constructor(public dbName: string, public onFallbackFailure: any) {}
 
   async getDb() {
     if (this._openDb) {
@@ -53,13 +58,13 @@ class Persistance {
     }
 
     this._openDb = await openDb(this.dbName);
-    return this._openDb;
+    return this._openDb as IDBDatabase;
   }
 
   closeDb() {
     if (this._openDb) {
       this._openDb.close();
-      this._openDb = null;
+      delete this._openDb;
     }
   }
 
@@ -72,20 +77,20 @@ class Persistance {
   // atomically)
 
   async readAll() {
-    let db = await this.getDb(this.dbName);
-    let blocks = new Map();
+    let db = await this.getDb();
+    let blocks = new Map<number, ArrayBufferLike>();
 
-    let trans = db.transaction(['data'], 'readonly');
-    let store = trans.objectStore('data');
+    let trans = db.transaction(["data"], "readonly");
+    let store = trans.objectStore("data");
 
-    return new Promise((resolve, reject) => {
+    return new Promise<Map<number, ArrayBufferLike>>((resolve, reject) => {
       // Open a cursor and iterate through the entire file
       let req = store.openCursor(IDBKeyRange.lowerBound(-1));
       req.onerror = reject;
-      req.onsuccess = e => {
-        let cursor = e.target.result;
+      req.onsuccess = (e) => {
+        let cursor = (e.target as any).result as IDBCursorWithValue;
         if (cursor) {
-          blocks.set(cursor.key, cursor.value);
+          blocks.set(cursor.key as number, cursor.value);
           cursor.continue();
         } else {
           resolve(blocks);
@@ -94,24 +99,28 @@ class Persistance {
     });
   }
 
-  async write(writes, cachedFirstBlock, hasLocked) {
-    let db = await this.getDb(this.dbName);
+  async write(
+    writes: Item[],
+    cachedFirstBlock: ArrayBufferLike,
+    hasLocked: boolean
+  ) {
+    let db = await this.getDb();
 
     // We need grab a readwrite lock on the db, and then read to check
     // to make sure we can write to it
-    let trans = db.transaction(['data'], 'readwrite');
-    let store = trans.objectStore('data');
+    let trans = db.transaction(["data"], "readwrite");
+    let store = trans.objectStore("data");
 
-    await new Promise((resolve, reject) => {
+    await new Promise<void>((resolve, reject) => {
       let req = store.get(0);
-      req.onsuccess = e => {
+      req.onsuccess = (e) => {
         if (hasLocked) {
           if (!isSafeToWrite(req.result, cachedFirstBlock)) {
             if (this.onFallbackFailure && !this.hasAlertedFailure) {
               this.hasAlertedFailure = true;
               this.onFallbackFailure();
             }
-            reject(new Error('Fallback mode unable to write file changes'));
+            reject(new Error("Fallback mode unable to write file changes"));
             return;
           }
         }
@@ -121,24 +130,25 @@ class Persistance {
           store.put(write.value, write.key);
         }
 
-        trans.onsuccess = () => resolve();
-        trans.onerror = () => reject();
+        trans.oncomplete = () => resolve();
+        trans.onerror = trans.onabort = () => reject();
       };
       req.onerror = reject;
     });
   }
 }
 
-export class FileOpsFallback {
-  constructor(filename, onFallbackFailure) {
-    this.filename = filename;
-    this.dbName = this.filename.replace(/\//g, '-');
-    this.cachedFirstBlock = null;
-    this.writeQueue = null;
-    this.blocks = new Map();
-    this.lockType = 0;
-    this.transferBlockOwnership = false;
+export class FileOpsFallback implements Ops {
+  dbName: string;
+  cachedFirstBlock?: ArrayBufferLike;
+  writeQueue: Item[] = [];
+  blocks = new Map<number, ArrayBufferLike | FileAttr>();
+  lockType = 0;
+  transferBlockOwnership = false;
+  persistance: Persistance;
 
+  constructor(public filename: string, onFallbackFailure: any) {
+    this.dbName = this.filename.replace(/\//g, "-");
     this.persistance = new Persistance(this.dbName, onFallbackFailure);
   }
 
@@ -149,17 +159,17 @@ export class FileOpsFallback {
     return this.readMeta();
   }
 
-  lock(lockType) {
+  lock(lockType: number) {
     // Locks always succeed here. Essentially we're only working
     // locally (we can't see any writes from anybody else) and we just
     // want to track the lock so we know when it downgrades from write
     // to read
-    this.cachedFirstBlock = this.blocks.get(0);
+    this.cachedFirstBlock = this.blocks.get(0) as ArrayBufferLike;
     this.lockType = lockType;
     return true;
   }
 
-  unlock(lockType) {
+  unlock(lockType: number) {
     if (this.lockType > LOCK_TYPES.SHARED && lockType === LOCK_TYPES.SHARED) {
       // Within a write lock, we delay all writes until the end of the
       // lock. We probably don't have to do this since we already
@@ -197,48 +207,53 @@ export class FileOpsFallback {
   }
 
   readMeta() {
-    let metaBlock = this.blocks.get(-1);
+    let metaBlock = this.blocks.get(-1) as FileAttr;
     if (metaBlock) {
-      let block = this.blocks.get(0);
+      let block = this.blocks.get(0) as ArrayBufferLike;
 
       return {
         size: metaBlock.size,
-        blockSize: getPageSize(new Uint8Array(block))
+        blockSize: getPageSize(new Uint8Array(block)),
       };
     }
-    return null;
+    return {};
   }
 
-  writeMeta(meta) {
+  writeMeta(meta: FileAttr) {
     this.blocks.set(-1, meta);
     this.queueWrite(-1, meta);
   }
 
-  readBlocks(positions, blockSize) {
-    let res = [];
+  readBlocks(positions: number[], blockSize: number) {
+    let res: Block[] = [];
     for (let pos of positions) {
       res.push({
         pos,
-        data: this.blocks.get(positionToKey(pos, blockSize))
+        data: this.blocks.get(positionToKey(pos, blockSize)) as ArrayBufferLike,
       });
     }
     return res;
   }
 
-  writeBlocks(writes, blockSize) {
-    for (let write of writes) {
-      let key = positionToKey(write.pos, blockSize);
-      this.blocks.set(key, write.data);
-      this.queueWrite(key, write.data);
+  writeBlocks(writes: Block[], blockSize: number) {
+    let writtenBytes = 0;
+    for (const write of writes) {
+      const key = positionToKey(write.pos, blockSize);
+      const data = write.data;
+      this.blocks.set(key, data);
+      this.queueWrite(key, data);
+      writtenBytes += data.byteLength;
     }
 
     // No write lock; flush them out immediately
     if (this.lockType <= LOCK_TYPES.SHARED) {
       this.flush();
     }
+
+    return writtenBytes;
   }
 
-  queueWrite(key, value) {
+  queueWrite(key: number, value: ArrayBufferLike | FileAttr) {
     this.writeQueue.push({ key, value });
   }
 
@@ -246,11 +261,11 @@ export class FileOpsFallback {
     if (this.writeQueue.length > 0) {
       this.persistance.write(
         this.writeQueue,
-        this.cachedFirstBlock,
+        this.cachedFirstBlock!,
         this.lockType > LOCK_TYPES.SHARED
       );
       this.writeQueue = [];
     }
-    this.cachedFirstBlock = null;
+    delete this.cachedFirstBlock;
   }
 }

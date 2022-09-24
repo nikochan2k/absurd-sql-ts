@@ -1,16 +1,17 @@
-import { Reader, Writer } from './shared-channel';
-import * as perf from 'perf-deets';
-import { LOCK_TYPES, isSafeToWrite } from '../sqlite-util';
+import { Block, FileAttr } from "../sqlite-types";
+import { isSafeToWrite, LOCK_TYPES } from "../sqlite-util";
+import { Item } from "./file-ops-fallback";
+import { Reader, Writer } from "./shared-channel";
 
 let isProbablySafari = /^((?!chrome|android).)*safari/i.test(
   navigator.userAgent
 );
 
 // Don't need a map anymore, we use a worker per file
-let openDbs = new Map();
-let transactions = new Map();
+let openDbs = new Map<string, IDBDatabase>();
+let transactions = new Map<string, Transaction>();
 
-function assert(cond, msg) {
+function assert(cond: boolean, msg: string) {
   if (!cond) {
     throw new Error(msg);
   }
@@ -21,27 +22,33 @@ function assert(cond, msg) {
 // read/writes with knowledge of how sqlite asks for them, and also
 // implements a locking mechanism that maps to how sqlite locks work.
 class Transaction {
-  constructor(db, initialMode = 'readonly') {
-    this.db = db;
-    perf.count('transactions');
-    this.trans = this.db.transaction(['data'], initialMode);
-    this.store = this.trans.objectStore('data');
+  trans: IDBTransaction;
+  store: IDBObjectStore;
+  lockType: number;
+
+  // There is no need for us to cache blocks. Use sqlite's
+  // `cache_size` for that and it will automatically do it. However,
+  // we do still keep a cache of the first block for the duration of
+  // this transaction because of how locking works; this avoids a
+  // few extra reads and allows us to detect changes during
+  // upgrading (see `upgradeExclusive`)
+  cachedFirstBlock = new ArrayBuffer(0);
+  cursor?: IDBCursor;
+  prevReads?: number[];
+
+  cursorPromise: any; // TODO
+
+  constructor(
+    public db: IDBDatabase,
+    initialMode: IDBTransactionMode = "readonly"
+  ) {
+    this.trans = this.db.transaction(["data"], initialMode);
+    this.store = this.trans.objectStore("data");
     this.lockType =
-      initialMode === 'readonly' ? LOCK_TYPES.SHARED : LOCK_TYPES.EXCLUSIVE;
-
-    // There is no need for us to cache blocks. Use sqlite's
-    // `cache_size` for that and it will automatically do it. However,
-    // we do still keep a cache of the first block for the duration of
-    // this transaction because of how locking works; this avoids a
-    // few extra reads and allows us to detect changes during
-    // upgrading (see `upgradeExclusive`)
-    this.cachedFirstBlock = null;
-
-    this.cursor = null;
-    this.prevReads = null;
+      initialMode === "readonly" ? LOCK_TYPES.SHARED : LOCK_TYPES.EXCLUSIVE;
   }
 
-  async prefetchFirstBlock(timeout) {
+  async prefetchFirstBlock(timeout: number) {
     // TODO: implement timeout
 
     // Get the first block and cache it
@@ -51,7 +58,7 @@ class Transaction {
   }
 
   async waitComplete() {
-    return new Promise((resolve, reject) => {
+    return new Promise<void>((resolve, reject) => {
       // Eagerly commit it for better perf. Note that **this assumes
       // the transaction is open** as `commit` will throw an error if
       // it's already closed (which should never be the case for us)
@@ -59,13 +66,13 @@ class Transaction {
 
       if (this.lockType === LOCK_TYPES.EXCLUSIVE) {
         // Wait until all writes are committed
-        this.trans.oncomplete = e => resolve();
+        this.trans.oncomplete = () => resolve();
 
         // TODO: Is it OK to add this later, after an error might have
         // happened? Will it hold the error and fire this when we
         // attached it? We might want to eagerly create the promise
         // when creating the transaction and return it here
-        this.trans.onerror = e => reject(e);
+        this.trans.onerror = (e) => reject(e);
       } else {
         if (isProbablySafari) {
           // Safari has a bug where sometimes the IDB gets blocked
@@ -73,7 +80,7 @@ class Transaction {
           // transaction. You have to restart the browser to fix it.
           // We wait for readonly transactions to finish too, but this
           // is a perf hit
-          this.trans.oncomplete = e => resolve();
+          this.trans.oncomplete = () => resolve();
         } else {
           // No need to wait on anything in a read-only transaction.
           // Note that errors during reads area always handled by the
@@ -96,9 +103,8 @@ class Transaction {
     this.commit();
 
     // console.log('updating transaction readwrite');
-    perf.count('transactions');
-    this.trans = this.db.transaction(['data'], 'readwrite');
-    this.store = this.trans.objectStore('data');
+    this.trans = this.db.transaction(["data"], "readwrite");
+    this.store = this.trans.objectStore("data");
     this.lockType = LOCK_TYPES.EXCLUSIVE;
 
     let cached0 = this.cachedFirstBlock;
@@ -114,25 +120,22 @@ class Transaction {
     this.commit();
 
     // console.log('downgrading transaction readonly');
-    perf.count('transactions');
-    this.trans = this.db.transaction(['data'], 'readonly');
-    this.store = this.trans.objectStore('data');
+    this.trans = this.db.transaction(["data"], "readonly");
+    this.store = this.trans.objectStore("data");
     this.lockType = LOCK_TYPES.SHARED;
   }
 
-  async get(key) {
-    return new Promise((resolve, reject) => {
-      perf.record('get');
-      let req = this.store.get(key);
-      req.onsuccess = e => {
-        perf.endRecording('get');
+  async get(key: number) {
+    return new Promise<ArrayBufferLike>((resolve, reject) => {
+      const req = this.store.get(key);
+      req.onsuccess = () => {
         resolve(req.result);
       };
-      req.onerror = e => reject(e);
+      req.onerror = (e) => reject(e);
     });
   }
 
-  getReadDirection() {
+  getReadDirection(): IDBCursorDirection | null {
     // There are a two ways we can read data: a direct `get` request
     // or opening a cursor and iterating through data. We don't know
     // what future reads look like, so we don't know the best strategy
@@ -165,7 +168,7 @@ class Transaction {
         prevReads[1] < prevReads[2] &&
         prevReads[2] - prevReads[0] < 10
       ) {
-        return 'next';
+        return "next";
       }
 
       // Has there been 3 backwards sequential reads within 10 blocks?
@@ -174,19 +177,19 @@ class Transaction {
         prevReads[1] > prevReads[2] &&
         prevReads[0] - prevReads[2] < 10
       ) {
-        return 'prev';
+        return "prev";
       }
     }
 
     return null;
   }
 
-  read(position) {
+  read(position: number): Promise<ArrayBufferLike> {
     let waitCursor = () => {
-      return new Promise((resolve, reject) => {
+      return new Promise<ArrayBufferLike>((resolve, reject) => {
         if (this.cursorPromise != null) {
           throw new Error(
-            'waitCursor() called but something else is already waiting'
+            "waitCursor() called but something else is already waiting"
           );
         }
         this.cursorPromise = { resolve, reject };
@@ -196,27 +199,24 @@ class Transaction {
     if (this.cursor) {
       let cursor = this.cursor;
 
+      const key = cursor.key as number;
       if (
-        cursor.direction === 'next' &&
-        position > cursor.key &&
-        position < cursor.key + 100
+        cursor.direction === "next" &&
+        position > key &&
+        position < key + 100
       ) {
-        perf.record('stream-next');
-
-        cursor.advance(position - cursor.key);
+        cursor.advance(position - key);
         return waitCursor();
       } else if (
-        cursor.direction === 'prev' &&
-        position < cursor.key &&
-        position > cursor.key - 100
+        cursor.direction === "prev" &&
+        position < key &&
+        position > key - 100
       ) {
-        perf.record('stream-next');
-
-        cursor.advance(cursor.key - position);
+        cursor.advance(key - position);
         return waitCursor();
       } else {
         // Ditch the cursor
-        this.cursor = null;
+        delete this.cursor;
         return this.read(position);
       }
     } else {
@@ -226,36 +226,32 @@ class Transaction {
       let dir = this.getReadDirection();
       if (dir) {
         // Open a cursor
-        this.prevReads = null;
+        delete this.prevReads;
 
         let keyRange;
-        if (dir === 'prev') {
+        if (dir === "prev") {
           keyRange = IDBKeyRange.upperBound(position);
         } else {
           keyRange = IDBKeyRange.lowerBound(position);
         }
 
         let req = this.store.openCursor(keyRange, dir);
-        perf.record('stream');
 
-        req.onsuccess = e => {
-          perf.endRecording('stream');
-          perf.endRecording('stream-next');
-
-          let cursor = e.target.result;
+        req.onsuccess = (e) => {
+          let cursor = (e.target as any).result as IDBCursorWithValue;
           this.cursor = cursor;
 
           if (this.cursorPromise == null) {
-            throw new Error('Got data from cursor but nothing is waiting it');
+            throw new Error("Got data from cursor but nothing is waiting it");
           }
           this.cursorPromise.resolve(cursor ? cursor.value : null);
           this.cursorPromise = null;
         };
-        req.onerror = e => {
-          console.log('Cursor failure:', e);
+        req.onerror = (e) => {
+          console.log("Cursor failure:", e);
 
           if (this.cursorPromise == null) {
-            throw new Error('Got data from cursor but nothing is waiting it');
+            throw new Error("Got data from cursor but nothing is waiting it");
           }
           this.cursorPromise.reject(e);
           this.cursorPromise = null;
@@ -274,18 +270,18 @@ class Transaction {
     }
   }
 
-  async set(item) {
-    this.prevReads = null;
+  async set(item: Item) {
+    delete this.prevReads;
 
     return new Promise((resolve, reject) => {
       let req = this.store.put(item.value, item.key);
-      req.onsuccess = e => resolve(req.result);
-      req.onerror = e => reject(e);
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = (e) => reject(e);
     });
   }
 
-  async bulkSet(items) {
-    this.prevReads = null;
+  async bulkSet(items: Item[]) {
+    delete this.prevReads;
 
     for (let item of items) {
       this.store.put(item.value, item.key);
@@ -293,20 +289,21 @@ class Transaction {
   }
 }
 
-async function loadDb(name) {
-  return new Promise((resolve, reject) => {
-    if (openDbs.get(name)) {
-      resolve(openDbs.get(name));
+async function loadDb(name: string) {
+  return new Promise<IDBDatabase>((resolve, reject) => {
+    const db = openDbs.get(name);
+    if (db) {
+      resolve(db);
       return;
     }
 
-    let req = globalThis.indexedDB.open(name, 2);
-    req.onsuccess = event => {
-      let db = event.target.result;
+    const req = globalThis.indexedDB.open(name, 2);
+    req.onsuccess = (event) => {
+      const db = (event.target as any).result as IDBDatabase;
 
       db.onversionchange = () => {
         // TODO: Notify the user somehow
-        console.log('closing because version changed');
+        console.log("closing because version changed");
         db.close();
         openDbs.delete(name);
       };
@@ -318,18 +315,18 @@ async function loadDb(name) {
       openDbs.set(name, db);
       resolve(db);
     };
-    req.onupgradeneeded = event => {
-      let db = event.target.result;
-      if (!db.objectStoreNames.contains('data')) {
-        db.createObjectStore('data');
+    req.onupgradeneeded = (event) => {
+      const db = (event.target as any).result as IDBDatabase;
+      if (!db.objectStoreNames.contains("data")) {
+        db.createObjectStore("data");
       }
     };
-    req.onblocked = e => console.log('blocked', e);
-    req.onerror = req.onabort = e => reject(e.target.error);
+    req.onblocked = (e) => console.log("blocked", e);
+    req.onerror = (e) => reject((e.target as any).error);
   });
 }
 
-function closeDb(name) {
+function closeDb(name: string) {
   let openDb = openDbs.get(name);
   if (openDb) {
     openDb.close();
@@ -337,11 +334,15 @@ function closeDb(name) {
   }
 }
 
-function getTransaction(name) {
+function getTransaction(name: string) {
   return transactions.get(name);
 }
 
-async function withTransaction(name, mode, func) {
+async function withTransaction(
+  name: string,
+  mode: IDBTransactionMode,
+  func: (trans: Transaction) => void
+) {
   let trans = transactions.get(name);
   if (trans) {
     // If a transaction already exists, that means the file has been
@@ -351,8 +352,8 @@ async function withTransaction(name, mode, func) {
     // locks the db and creates a transaction for the duraction of the
     // lock. We don't actually write code in a way that assumes nested
     // transactions, so just error here
-    if (mode === 'readwrite' && trans.lockType === LOCK_TYPES.SHARED) {
-      throw new Error('Attempted write but only has SHARED lock');
+    if (mode === "readwrite" && trans.lockType === LOCK_TYPES.SHARED) {
+      throw new Error("Attempted write but only has SHARED lock");
     }
     return func(trans);
   }
@@ -420,7 +421,7 @@ async function withTransaction(name, mode, func) {
 //
 // * Upgrading to an EXCLUSIVE lock is a noop, since we treat RESERVED
 //   locks as EXCLUSIVE.
-async function handleLock(writer, name, lockType) {
+async function handleLock(writer: Writer, name: string, lockType: number) {
   // console.log('locking', name, lockType, performance.now());
 
   let trans = transactions.get(name);
@@ -468,12 +469,12 @@ async function handleLock(writer, name, lockType) {
   }
 }
 
-async function handleUnlock(writer, name, lockType) {
+async function handleUnlock(writer: Writer, name: string, lockType: number) {
   let trans = getTransaction(name);
 
   if (lockType === LOCK_TYPES.SHARED) {
     if (trans == null) {
-      throw new Error('Unlock error (SHARED): no transaction running');
+      throw new Error("Unlock error (SHARED): no transaction running");
     }
 
     if (trans.lockType === LOCK_TYPES.EXCLUSIVE) {
@@ -494,8 +495,8 @@ async function handleUnlock(writer, name, lockType) {
   writer.finalize();
 }
 
-async function handleRead(writer, name, position) {
-  return withTransaction(name, 'readonly', async trans => {
+async function handleRead(writer: Writer, name: string, position: number) {
+  return withTransaction(name, "readonly", async (trans) => {
     let data = await trans.read(position);
 
     if (data == null) {
@@ -507,20 +508,20 @@ async function handleRead(writer, name, position) {
   });
 }
 
-async function handleWrites(writer, name, writes) {
-  return withTransaction(name, 'readwrite', async trans => {
-    await trans.bulkSet(writes.map(w => ({ key: w.pos, value: w.data })));
+async function handleWrites(writer: Writer, name: string, writes: Block[]) {
+  return withTransaction(name, "readwrite", async (trans) => {
+    await trans.bulkSet(writes.map((w) => ({ key: w.pos, value: w.data })));
 
     writer.int32(0);
     writer.finalize();
   });
 }
 
-async function handleReadMeta(writer, name) {
-  return withTransaction(name, 'readonly', async trans => {
+async function handleReadMeta(writer: Writer, name: string) {
+  return withTransaction(name, "readonly", async (trans) => {
     try {
-      console.log('Reading meta...');
-      let res = await trans.get(-1);
+      console.log("Reading meta...");
+      let res = (await trans.get(-1)) as FileAttr;
       console.log(`Got meta for ${name}:`, res);
 
       if (res == null) {
@@ -542,7 +543,7 @@ async function handleReadMeta(writer, name) {
           blockSize = arr[8] * 256;
         }
 
-        writer.int32(res.size);
+        writer.int32(res.size!);
         writer.int32(blockSize);
         writer.finalize();
       }
@@ -555,8 +556,8 @@ async function handleReadMeta(writer, name) {
   });
 }
 
-async function handleWriteMeta(writer, name, meta) {
-  return withTransaction(name, 'readwrite', async trans => {
+async function handleWriteMeta(writer: Writer, name: string, meta: FileAttr) {
+  return withTransaction(name, "readwrite", async (trans) => {
     try {
       await trans.set({ key: -1, value: meta });
 
@@ -575,14 +576,12 @@ async function handleWriteMeta(writer, name, meta) {
 // recursively called) because I thought that was necessary for
 // various reasons. We can convert this to a `while(1)` loop with
 // and use `await` though
-async function listen(reader, writer) {
+async function listen(reader: Reader, writer: Writer) {
   let method = reader.string();
 
   switch (method) {
-    case 'profile-start': {
+    case "profile-start": {
       reader.done();
-
-      perf.start();
 
       writer.int32(0);
       writer.finalize();
@@ -590,13 +589,12 @@ async function listen(reader, writer) {
       break;
     }
 
-    case 'profile-stop': {
+    case "profile-stop": {
       reader.done();
 
-      perf.stop();
       // The perf library posts a message; make sure it has time to
       // actually post it before blocking the thread again
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise<void>((resolve) => setTimeout(resolve, 1000));
 
       writer.int32(0);
       writer.finalize();
@@ -604,7 +602,7 @@ async function listen(reader, writer) {
       break;
     }
 
-    case 'writeBlocks': {
+    case "writeBlocks": {
       let name = reader.string();
       let writes = [];
       while (!reader.done()) {
@@ -618,7 +616,7 @@ async function listen(reader, writer) {
       break;
     }
 
-    case 'readBlock': {
+    case "readBlock": {
       let name = reader.string();
       let pos = reader.int32();
       reader.done();
@@ -628,7 +626,7 @@ async function listen(reader, writer) {
       break;
     }
 
-    case 'readMeta': {
+    case "readMeta": {
       let name = reader.string();
       reader.done();
       await handleReadMeta(writer, name);
@@ -636,7 +634,7 @@ async function listen(reader, writer) {
       break;
     }
 
-    case 'writeMeta': {
+    case "writeMeta": {
       let name = reader.string();
       let size = reader.int32();
       // let blockSize = reader.int32();
@@ -646,7 +644,7 @@ async function listen(reader, writer) {
       break;
     }
 
-    case 'closeFile': {
+    case "closeFile": {
       let name = reader.string();
       reader.done();
 
@@ -658,7 +656,7 @@ async function listen(reader, writer) {
       break;
     }
 
-    case 'lockFile': {
+    case "lockFile": {
       let name = reader.string();
       let lockType = reader.int32();
       reader.done();
@@ -668,7 +666,7 @@ async function listen(reader, writer) {
       break;
     }
 
-    case 'unlockFile': {
+    case "unlockFile": {
       let name = reader.string();
       let lockType = reader.int32();
       reader.done();
@@ -679,17 +677,17 @@ async function listen(reader, writer) {
     }
 
     default:
-      throw new Error('Unknown method: ' + method);
+      throw new Error("Unknown method: " + method);
   }
 }
 
-self.onmessage = msg => {
+self.onmessage = (msg) => {
   switch (msg.data.type) {
-    case 'init': {
+    case "init": {
       // postMessage({ type: '__absurd:worker-ready' });
       let [argBuffer, resultBuffer] = msg.data.buffers;
-      let reader = new Reader(argBuffer, { name: 'args', debug: false });
-      let writer = new Writer(resultBuffer, { name: 'results', debug: false });
+      let reader = new Reader(argBuffer, { name: "args", debug: false });
+      let writer = new Writer(resultBuffer, { name: "results", debug: false });
       listen(reader, writer);
       break;
     }

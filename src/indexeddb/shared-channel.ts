@@ -3,36 +3,49 @@ let FINALIZED = 0xdeadbeef;
 let WRITEABLE = 0;
 let READABLE = 1;
 
+interface Params {
+  initialOffset?: number;
+  useAtomics?: boolean;
+  stream?: boolean;
+  debug?: boolean;
+  name: string;
+}
+
 export class Reader {
-  constructor(
-    buffer,
-    { initialOffset = 4, useAtomics = true, stream = true, debug, name } = {}
-  ) {
-    this.buffer = buffer;
+  atomicView: Int32Array;
+  offset: number;
+  useAtomics: boolean;
+  stream: boolean;
+  debug: boolean;
+  name: string;
+
+  peekOffset?: number;
+
+  constructor(public buffer: ArrayBufferLike, params: Params) {
     this.atomicView = new Int32Array(buffer);
-    this.offset = initialOffset;
-    this.useAtomics = useAtomics;
-    this.stream = stream;
-    this.debug = debug;
-    this.name = name;
+    this.offset = params.initialOffset ?? 4;
+    this.useAtomics = params.useAtomics ?? true;
+    this.stream = params.stream ?? true;
+    this.debug = params.debug ?? false;
+    this.name = params.name;
   }
 
-  log(...args) {
+  log(...args: any[]) {
     if (this.debug) {
       console.log(`[reader: ${this.name}]`, ...args);
     }
   }
 
-  waitWrite(name, timeout = null) {
+  waitWrite(name: string, timeout?: number) {
     if (this.useAtomics) {
       this.log(`waiting for ${name}`);
 
       while (Atomics.load(this.atomicView, 0) === WRITEABLE) {
         if (timeout != null) {
           if (
-            Atomics.wait(this.atomicView, 0, WRITEABLE, timeout) === 'timed-out'
+            Atomics.wait(this.atomicView, 0, WRITEABLE, timeout) === "timed-out"
           ) {
-            throw new Error('timeout');
+            throw new Error("timeout");
           }
         }
 
@@ -42,13 +55,13 @@ export class Reader {
       this.log(`resumed for ${name}`);
     } else {
       if (this.atomicView[0] !== READABLE) {
-        throw new Error('`waitWrite` expected array to be readable');
+        throw new Error("`waitWrite` expected array to be readable");
       }
     }
   }
 
   flip() {
-    this.log('flip');
+    this.log("flip");
     if (this.useAtomics) {
       let prev = Atomics.compareExchange(
         this.atomicView,
@@ -58,7 +71,7 @@ export class Reader {
       );
 
       if (prev !== READABLE) {
-        throw new Error('Read data out of sync! This is disastrous');
+        throw new Error("Read data out of sync! This is disastrous");
       }
 
       Atomics.notify(this.atomicView, 0);
@@ -70,29 +83,29 @@ export class Reader {
   }
 
   done() {
-    this.waitWrite('done');
+    this.waitWrite("done");
 
     let dataView = new DataView(this.buffer, this.offset);
     let done = dataView.getUint32(0) === FINALIZED;
 
     if (done) {
-      this.log('done');
+      this.log("done");
       this.flip();
     }
 
     return done;
   }
 
-  peek(fn) {
+  peek(fn: () => void) {
     this.peekOffset = this.offset;
     let res = fn();
     this.offset = this.peekOffset;
-    this.peekOffset = null;
+    delete this.peekOffset;
     return res;
   }
 
-  string(timeout) {
-    this.waitWrite('string', timeout);
+  string(timeout?: number) {
+    this.waitWrite("string", timeout);
 
     let byteLength = this._int32();
     let length = byteLength / 2;
@@ -103,7 +116,7 @@ export class Reader {
       chars.push(dataView.getUint16(i * 2));
     }
     let str = String.fromCharCode.apply(null, chars);
-    this.log('string', str);
+    this.log("string", str);
 
     this.offset += byteLength;
 
@@ -117,17 +130,17 @@ export class Reader {
     let byteLength = 4;
 
     let dataView = new DataView(this.buffer, this.offset);
-    let num = dataView.getInt32();
-    this.log('_int32', num);
+    let num = dataView.getInt32(0);
+    this.log("_int32", num);
 
     this.offset += byteLength;
     return num;
   }
 
   int32() {
-    this.waitWrite('int32');
+    this.waitWrite("int32");
     let num = this._int32();
-    this.log('int32', num);
+    this.log("int32", num);
 
     if (this.peekOffset == null) {
       this.flip();
@@ -136,7 +149,7 @@ export class Reader {
   }
 
   bytes() {
-    this.waitWrite('bytes');
+    this.waitWrite("bytes");
 
     let byteLength = this._int32();
 
@@ -144,7 +157,7 @@ export class Reader {
     new Uint8Array(bytes).set(
       new Uint8Array(this.buffer, this.offset, byteLength)
     );
-    this.log('bytes', bytes);
+    this.log("bytes", bytes);
 
     this.offset += byteLength;
 
@@ -156,18 +169,20 @@ export class Reader {
 }
 
 export class Writer {
-  constructor(
-    buffer,
-    { initialOffset = 4, useAtomics = true, stream = true, debug, name } = {}
-  ) {
-    this.buffer = buffer;
-    this.atomicView = new Int32Array(buffer);
-    this.offset = initialOffset;
-    this.useAtomics = useAtomics;
-    this.stream = stream;
+  atomicView: Int32Array;
+  offset: number;
+  useAtomics: boolean;
+  stream: boolean;
+  debug: boolean;
+  name: string;
 
-    this.debug = debug;
-    this.name = name;
+  constructor(public buffer: ArrayBufferLike, params: Params) {
+    this.atomicView = new Int32Array(buffer);
+    this.offset = params.initialOffset ?? 4;
+    this.useAtomics = params.useAtomics ?? true;
+    this.stream = params.stream ?? true;
+    this.debug = params.debug ?? false;
+    this.name = params.name;
 
     if (this.useAtomics) {
       // The buffer starts out as writeable
@@ -177,13 +192,13 @@ export class Writer {
     }
   }
 
-  log(...args) {
+  log(...args: any[]) {
     if (this.debug) {
       console.log(`[writer: ${this.name}]`, ...args);
     }
   }
 
-  waitRead(name) {
+  waitRead(name: string) {
     if (this.useAtomics) {
       this.log(`waiting for ${name}`);
       // Switch to writable
@@ -198,7 +213,7 @@ export class Writer {
 
       if (prev !== WRITEABLE) {
         throw new Error(
-          'Wrote something into unwritable buffer! This is disastrous'
+          "Wrote something into unwritable buffer! This is disastrous"
         );
       }
 
@@ -218,14 +233,14 @@ export class Writer {
   }
 
   finalize() {
-    this.log('finalizing');
+    this.log("finalizing");
     let dataView = new DataView(this.buffer, this.offset);
     dataView.setUint32(0, FINALIZED);
-    this.waitRead('finalize');
+    this.waitRead("finalize");
   }
 
-  string(str) {
-    this.log('string', str);
+  string(str: string) {
+    this.log("string", str);
 
     let byteLength = str.length * 2;
     this._int32(byteLength);
@@ -236,10 +251,10 @@ export class Writer {
     }
 
     this.offset += byteLength;
-    this.waitRead('string');
+    this.waitRead("string");
   }
 
-  _int32(num) {
+  _int32(num: number) {
     let byteLength = 4;
 
     let dataView = new DataView(this.buffer, this.offset);
@@ -248,20 +263,20 @@ export class Writer {
     this.offset += byteLength;
   }
 
-  int32(num) {
-    this.log('int32', num);
+  int32(num: number) {
+    this.log("int32", num);
     this._int32(num);
-    this.waitRead('int32');
+    this.waitRead("int32");
   }
 
-  bytes(buffer) {
-    this.log('bytes', buffer);
+  bytes(buffer: ArrayBufferLike) {
+    this.log("bytes", buffer);
 
     let byteLength = buffer.byteLength;
     this._int32(byteLength);
     new Uint8Array(this.buffer, this.offset).set(new Uint8Array(buffer));
 
     this.offset += byteLength;
-    this.waitRead('bytes');
+    this.waitRead("bytes");
   }
 }

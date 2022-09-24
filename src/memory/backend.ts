@@ -1,12 +1,15 @@
-import { File } from '../sqlite-file';
+import { IBackend } from "../backend";
+import { File, Ops } from "../sqlite-file";
+import { Block, FileAttr } from "../sqlite-types";
 
-class FileOps {
-  constructor(filename, meta = null, data) {
-    this.filename = filename;
-    this.locked = false;
-    this.meta = meta;
-    this.data = data || new ArrayBuffer(0);
-  }
+class FileOps implements Ops {
+  public locked = false;
+
+  constructor(
+    public filename: string,
+    public meta: FileAttr,
+    public data: ArrayBufferLike = new ArrayBuffer(0)
+  ) {}
 
   lock() {
     return true;
@@ -33,7 +36,7 @@ class FileOps {
     return this.meta;
   }
 
-  writeMeta(meta) {
+  writeMeta(meta: FileAttr) {
     if (this.meta == null) {
       this.meta = {};
     }
@@ -41,11 +44,11 @@ class FileOps {
     this.meta.blockSize = meta.blockSize;
   }
 
-  readBlocks(positions, blockSize) {
+  readBlocks(positions: number[], blockSize: number) {
     // console.log('_reading', this.filename, positions);
     let data = this.data;
 
-    return positions.map(pos => {
+    return positions.map((pos) => {
       let buffer = new ArrayBuffer(blockSize);
 
       if (pos < data.byteLength) {
@@ -58,15 +61,16 @@ class FileOps {
     });
   }
 
-  writeBlocks(writes, blockSize) {
+  writeBlocks(writes: Block[], blockSize: number) {
     // console.log('_writing', this.filename, writes);
     let data = this.data;
 
-    console.log('writes', writes.length);
+    // console.log("writes", writes.length);
     let i = 0;
+    let written = 0;
     for (let write of writes) {
       if (i % 1000 === 0) {
-        console.log('write');
+        console.log("write");
       }
       i++;
       let fullLength = write.pos + write.data.byteLength;
@@ -80,20 +84,23 @@ class FileOps {
 
       new Uint8Array(data).set(new Uint8Array(write.data), write.pos);
     }
+
+    return writes.length; // TODO
   }
 }
 
-export default class MemoryBackend {
-  constructor(fileData) {
-    this.fileData = Object.fromEntries(
-      Object.entries(fileData).map(([name, data]) => {
-        return [name, data];
-      })
-    );
-    this.files = {};
+export default class MemoryBackend implements IBackend {
+  defaultBlockSize = 4096;
+  fileData: { [name: string]: ArrayBufferLike } = {};
+  files: { [name: string]: File } = {};
+
+  constructor(fileData: Map<string, ArrayBufferLike>) {
+    for (const [name, data] of Object.entries(fileData)) {
+      this.fileData[name] = data;
+    }
   }
 
-  createFile(filename) {
+  createFile(filename: string) {
     if (this.files[filename] == null) {
       let data = this.fileData[filename];
 
@@ -104,16 +111,16 @@ export default class MemoryBackend {
           data
             ? {
                 size: data.byteLength,
-                blockSize: this.defaultBlockSize
+                blockSize: this.defaultBlockSize,
               }
-            : null
+            : {}
         )
       );
     }
     return this.files[filename];
   }
 
-  getFile(filename) {
+  getFile(filename: string) {
     return this.files[filename];
   }
 
