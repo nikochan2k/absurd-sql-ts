@@ -1,4 +1,5 @@
-import { FileAttr } from "./sqlite-types";
+import { IBackend } from "./backend";
+import { File } from "./sqlite-file";
 
 interface ErrornoErrorConstructor {
   new (errno: number): any;
@@ -56,14 +57,14 @@ interface StreamOps {
   close?: (stream: Stream) => void;
   read?: (
     stream: Stream,
-    buffer: ArrayBufferLike,
+    buffer: ArrayBufferView,
     offset: number,
     length: number,
     position: number
   ) => number;
   write?: (
     stream: Stream,
-    buffer: ArrayBufferLike,
+    buffer: ArrayBufferView,
     offset: number,
     length: number,
     position: number
@@ -94,40 +95,15 @@ interface StreamOps {
   ) => void;
 }
 
-interface Contents {
-  getattr?: () => FileAttr;
-  setattr?: (attr: FileAttr) => void;
-  delete?: (name: string) => void;
-  lock?: (lockType: number) => boolean;
-  unlock?: (lockType: number) => void;
-  open?: () => void;
-  close?: () => void;
-  read?: (
-    buffer: ArrayBufferLike,
-    offset: number,
-    length: number,
-    position: number
-  ) => number;
-  write?: (
-    buffer: ArrayBufferLike,
-    offset: number,
-    length: number,
-    position: number
-  ) => number;
-  llseek?: (offset: number, whence: number) => number;
-  allocate?: (offset: number, length: number) => void;
-  fsync?: () => void;
-}
-
 interface Node {
   id: number;
   node_ops: NodeOps;
-  stream_ops: StreamOps;
+  stream_ops?: StreamOps;
   mode: number;
   rdev: number;
   size: number;
   timestamp: number;
-  contents: Contents;
+  contents?: File;
 }
 
 enum ERRNO_CODES {
@@ -148,10 +124,10 @@ export default class SQLiteFS {
   node_ops: NodeOps;
   stream_ops: StreamOps;
 
-  constructor(public fs: FS, public backend: any) {
+  constructor(public fs: FS, public backend: IBackend) {
     this.node_ops = {
       getattr: (node) => {
-        let fileattr = fs.isFile(node.mode) ? node.contents.getattr!() : null;
+        let fileattr = fs.isFile(node.mode) ? node.contents!.getattr!() : null;
 
         const size = fileattr ? fileattr.size! : fs.isDir(node.mode) ? 4096 : 0;
         const blksize = fileattr ? fileattr.blockSize! : 4096;
@@ -174,7 +150,7 @@ export default class SQLiteFS {
       },
       setattr: (node, attr) => {
         if (this.fs.isFile(node.mode)) {
-          node.contents.setattr!(attr);
+          node.contents!.setattr(attr);
         } else {
           if (attr.mode != null) {
             node.mode = attr.mode;
@@ -199,7 +175,7 @@ export default class SQLiteFS {
       },
       unlink: (parent, name) => {
         let node = this.fs.lookupNode(parent, name);
-        node.contents.delete!(name);
+        node.contents!.delete();
       },
       readdir: (node) => {
         // We could list all the available databases here if `node` is
@@ -221,24 +197,24 @@ export default class SQLiteFS {
     this.stream_ops = {
       open: (stream) => {
         if (this.fs.isFile(stream.node.mode)) {
-          stream.node.contents.open!();
+          stream.node.contents!.open();
         }
       },
 
       close: (stream) => {
         if (this.fs.isFile(stream.node.mode)) {
-          stream.node.contents.close!();
+          stream.node.contents!.close();
         }
       },
 
       read: (stream, buffer, offset, length, position) => {
         // console.log('read', offset, length, position)
-        return stream.node.contents.read!(buffer, offset, length, position);
+        return stream.node.contents!.read(buffer, offset, length, position);
       },
 
       write: (stream, buffer, offset, length, position) => {
         // console.log('write', offset, length, position);
-        return stream.node.contents.write!(buffer, offset, length, position);
+        return stream.node.contents!.write(buffer, offset, length, position);
       },
 
       llseek: (stream, offset, whence) => {
@@ -248,7 +224,7 @@ export default class SQLiteFS {
           position += stream.position;
         } else if (whence === 2) {
           if (fs.isFile(stream.node.mode)) {
-            position += stream.node.contents.getattr!().size!;
+            position += stream.node.contents!.getattr().size!;
           }
         }
         if (position < 0) {
@@ -257,7 +233,7 @@ export default class SQLiteFS {
         return position;
       },
       allocate: (stream, offset, length) => {
-        stream.node.contents.setattr!({ size: offset + length });
+        stream.node.contents!.setattr({ size: offset + length });
       },
       mmap: () => {
         throw new Error("mmap not implemented");
@@ -266,7 +242,7 @@ export default class SQLiteFS {
         throw new Error("msync not implemented");
       },
       fsync: (stream) => {
-        stream.node.contents.fsync!();
+        stream.node.contents!.fsync();
       },
     };
   }
@@ -277,12 +253,12 @@ export default class SQLiteFS {
 
   lock(path: string, lockType: number) {
     let { node } = this.fs.lookupPath(path);
-    return node.contents.lock!(lockType);
+    return node.contents!.lock(lockType);
   }
 
   unlock(path: string, lockType: number) {
     let { node } = this.fs.lookupPath(path);
-    return node.contents.unlock!(lockType);
+    return node.contents!.unlock(lockType);
   }
 
   createNode(parent: Node | null, name: string, mode: number, dev: number) {
@@ -299,8 +275,8 @@ export default class SQLiteFS {
         unlink: this.node_ops.unlink,
         setattr: this.node_ops.setattr,
       };
-      node.stream_ops = {};
-      node.contents = {};
+      delete node.stream_ops;
+      delete node.contents;
     } else if (this.fs.isFile(node.mode)) {
       node.node_ops = this.node_ops;
       node.stream_ops = this.stream_ops;
