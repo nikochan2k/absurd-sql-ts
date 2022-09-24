@@ -1,5 +1,6 @@
 import { IBackend } from "./backend";
 import { File } from "./sqlite-file";
+import { LOCK_TYPES } from "./sqlite-util";
 
 interface ErrornoErrorConstructor {
   new (errno: number): any;
@@ -251,12 +252,12 @@ export default class SQLiteFS {
     return this.createNode(null, "/", 16384 /* dir */ | 511 /* 0777 */, 0);
   }
 
-  lock(path: string, lockType: number) {
+  lock(path: string, lockType: LOCK_TYPES) {
     let { node } = this.fs.lookupPath(path);
     return node.contents!.lock(lockType);
   }
 
-  unlock(path: string, lockType: number) {
+  unlock(path: string, lockType: LOCK_TYPES) {
     let { node } = this.fs.lookupPath(path);
     return node.contents!.unlock(lockType);
   }

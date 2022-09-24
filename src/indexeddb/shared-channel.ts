@@ -117,7 +117,7 @@ export class Reader extends Stream {
     let length = byteLength / 2;
 
     let dataView = new DataView(this.buffer, this.offset, byteLength);
-    let chars = [];
+    let chars: number[] = [];
     for (let i = 0; i < length; i++) {
       chars.push(dataView.getUint16(i * 2));
     }
@@ -154,7 +154,7 @@ export class Reader extends Stream {
     return num;
   }
 
-  bytes() {
+  bytes(): ArrayBufferLike {
     this.waitWrite("bytes");
 
     let byteLength = this._int32();

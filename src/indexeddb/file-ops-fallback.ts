@@ -139,7 +139,7 @@ export class FileOpsFallback implements Ops {
   cachedFirstBlock?: ArrayBufferLike;
   writeQueue: Item[] = [];
   blocks = new Map<number, ArrayBufferLike | FileAttr>();
-  lockType = 0;
+  lockType = LOCK_TYPES.NONE;
   transferBlockOwnership = false;
   persistance: Persistance;
 
@@ -155,7 +155,7 @@ export class FileOpsFallback implements Ops {
     return this.readMeta();
   }
 
-  lock(lockType: number) {
+  lock(lockType: LOCK_TYPES) {
     // Locks always succeed here. Essentially we're only working
     // locally (we can't see any writes from anybody else) and we just
     // want to track the lock so we know when it downgrades from write
@@ -165,7 +165,7 @@ export class FileOpsFallback implements Ops {
     return true;
   }
 
-  unlock(lockType: number) {
+  unlock(lockType: LOCK_TYPES) {
     if (this.lockType > LOCK_TYPES.SHARED && lockType === LOCK_TYPES.SHARED) {
       // Within a write lock, we delay all writes until the end of the
       // lock. We probably don't have to do this since we already
@@ -187,7 +187,7 @@ export class FileOpsFallback implements Ops {
 
   open() {
     this.writeQueue = [];
-    this.lockType = 0;
+    this.lockType = LOCK_TYPES.NONE;
   }
 
   close() {

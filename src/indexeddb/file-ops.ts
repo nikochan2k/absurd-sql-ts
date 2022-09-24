@@ -1,5 +1,6 @@
 import { Ops } from "../sqlite-file";
 import { Block, FileAttr } from "../sqlite-types";
+import { LOCK_TYPES } from "../sqlite-util";
 import { Reader, Writer } from "./shared-channel";
 
 function positionToKey(pos: number, blockSize: number) {
@@ -47,7 +48,6 @@ function startWorker(reader: any, writer: any) {
 export class FileOps implements Ops {
   reader?: Reader;
   writer?: Writer;
-  worker?: any;
   storeName: string;
 
   constructor(public filename: string) {
@@ -62,7 +62,7 @@ export class FileOps implements Ops {
       blockSize?: number;
       writes?: any[];
       meta?: FileAttr;
-      lockType?: number;
+      lockType?: LOCK_TYPES;
     }
   ) {
     if (this.reader == null || this.writer == null) {
@@ -171,14 +171,14 @@ export class FileOps implements Ops {
     }
   }
 
-  lock(lockType: number) {
+  lock(lockType: LOCK_TYPES) {
     return this.invokeWorker("lockFile", {
       name: this.storeName,
       lockType,
     }) as boolean;
   }
 
-  unlock(lockType: number) {
+  unlock(lockType: LOCK_TYPES) {
     return this.invokeWorker("unlockFile", {
       name: this.storeName,
       lockType,
@@ -225,7 +225,6 @@ export class FileOps implements Ops {
     this.invokeWorker("closeFile", { name: this.storeName });
     delete this.reader;
     delete this.writer;
-    delete this.worker;
   }
 
   readMeta() {

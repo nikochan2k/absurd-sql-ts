@@ -24,7 +24,7 @@ function assert(cond: boolean, msg: string) {
 class Transaction {
   trans: IDBTransaction;
   store: IDBObjectStore;
-  lockType: number;
+  lockType: LOCK_TYPES;
 
   // There is no need for us to cache blocks. Use sqlite's
   // `cache_size` for that and it will automatically do it. However,
@@ -421,7 +421,7 @@ async function withTransaction(
 //
 // * Upgrading to an EXCLUSIVE lock is a noop, since we treat RESERVED
 //   locks as EXCLUSIVE.
-async function handleLock(writer: Writer, name: string, lockType: number) {
+async function handleLock(writer: Writer, name: string, lockType: LOCK_TYPES) {
   // console.log('locking', name, lockType, performance.now());
 
   let trans = transactions.get(name);
@@ -469,7 +469,11 @@ async function handleLock(writer: Writer, name: string, lockType: number) {
   }
 }
 
-async function handleUnlock(writer: Writer, name: string, lockType: number) {
+async function handleUnlock(
+  writer: Writer,
+  name: string,
+  lockType: LOCK_TYPES
+) {
   let trans = getTransaction(name);
 
   if (lockType === LOCK_TYPES.SHARED) {

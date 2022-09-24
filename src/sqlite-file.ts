@@ -1,19 +1,23 @@
 import { Block, FileAttr } from "./sqlite-types";
 import { getPageSize, LOCK_TYPES } from "./sqlite-util";
 
-export interface Reader {
+export interface IReader {
+  string(timeout?: number): string;
   int32(): number;
   done(): void;
+  bytes(): ArrayBufferLike;
 }
 
-export interface Writer {
+export interface IWriter {
   string(str: string): void;
   finalize(): void;
+  int32(num: number): void;
+  bytes(buffer: ArrayBufferLike): void;
 }
 
 export interface Ops {
-  writer?: Writer;
-  reader?: Reader;
+  writer?: IWriter;
+  reader?: IReader;
   readIfFallback?: () => Promise<FileAttr>;
   open(): void;
   readMeta(): FileAttr | undefined;
@@ -22,8 +26,8 @@ export interface Ops {
   readBlocks(positions: number[], blockSize: number): Block[];
   writeMeta(meta: FileAttr): void;
   writeBlocks(blocks: Block[], blockSize: number): number;
-  lock(lockType: number): boolean;
-  unlock(lockType: number): void;
+  lock(lockType: LOCK_TYPES): boolean;
+  unlock(lockType: LOCK_TYPES): void;
 }
 
 function range(start: number, end: number, step: number) {
@@ -375,7 +379,7 @@ export class File {
     }
   }
 
-  lock(lockType: number) {
+  lock(lockType: LOCK_TYPES) {
     if (!this._recordingLock) {
       this._recordingLock = true;
     }
@@ -389,8 +393,8 @@ export class File {
     return false;
   }
 
-  unlock(lockType: number) {
-    if (lockType === 0) {
+  unlock(lockType: LOCK_TYPES) {
+    if (lockType === LOCK_TYPES.NONE) {
       this._recordingLock = false;
     }
 
