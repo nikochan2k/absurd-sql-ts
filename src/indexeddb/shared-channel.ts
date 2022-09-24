@@ -8,10 +8,10 @@ interface Params {
   useAtomics?: boolean;
   stream?: boolean;
   debug?: boolean;
-  name: string;
+  name?: string;
 }
 
-export class Reader {
+export class Stream {
   atomicView: Int32Array;
   offset: number;
   useAtomics: boolean;
@@ -19,21 +19,27 @@ export class Reader {
   debug: boolean;
   name: string;
 
-  peekOffset?: number;
-
   constructor(public buffer: ArrayBufferLike, params: Params) {
     this.atomicView = new Int32Array(buffer);
     this.offset = params.initialOffset ?? 4;
     this.useAtomics = params.useAtomics ?? true;
     this.stream = params.stream ?? true;
     this.debug = params.debug ?? false;
-    this.name = params.name;
+    this.name = params.name ?? "undefined";
   }
 
   log(...args: any[]) {
     if (this.debug) {
-      console.log(`[reader: ${this.name}]`, ...args);
+      console.log(`[${this.constructor.name}: ${this.name}]`, ...args);
     }
+  }
+}
+
+export class Reader extends Stream {
+  peekOffset?: number;
+
+  constructor(public buffer: ArrayBufferLike, params: Params) {
+    super(buffer, params);
   }
 
   waitWrite(name: string, timeout?: number) {
@@ -168,33 +174,15 @@ export class Reader {
   }
 }
 
-export class Writer {
-  atomicView: Int32Array;
-  offset: number;
-  useAtomics: boolean;
-  stream: boolean;
-  debug: boolean;
-  name: string;
-
+export class Writer extends Stream {
   constructor(public buffer: ArrayBufferLike, params: Params) {
-    this.atomicView = new Int32Array(buffer);
-    this.offset = params.initialOffset ?? 4;
-    this.useAtomics = params.useAtomics ?? true;
-    this.stream = params.stream ?? true;
-    this.debug = params.debug ?? false;
-    this.name = params.name;
+    super(buffer, params);
 
     if (this.useAtomics) {
       // The buffer starts out as writeable
       Atomics.store(this.atomicView, 0, WRITEABLE);
     } else {
       this.atomicView[0] = WRITEABLE;
-    }
-  }
-
-  log(...args: any[]) {
-    if (this.debug) {
-      console.log(`[writer: ${this.name}]`, ...args);
     }
   }
 

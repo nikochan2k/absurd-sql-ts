@@ -1,6 +1,31 @@
 import { Block, FileAttr } from "./sqlite-types";
 import { getPageSize, LOCK_TYPES } from "./sqlite-util";
 
+export interface Reader {
+  int32(): number;
+  done(): void;
+}
+
+export interface Writer {
+  string(str: string): void;
+  finalize(): void;
+}
+
+export interface Ops {
+  writer?: Writer;
+  reader?: Reader;
+  readIfFallback?: () => Promise<FileAttr>;
+  open(): void;
+  readMeta(): FileAttr | undefined;
+  close(): void;
+  delete(): void;
+  readBlocks(positions: number[], blockSize: number): Block[];
+  writeMeta(meta: FileAttr): void;
+  writeBlocks(blocks: Block[], blockSize: number): number;
+  lock(lockType: number): boolean;
+  unlock(lockType: number): void;
+}
+
 function range(start: number, end: number, step: number) {
   let r = [];
   for (let i = start; i <= end; i += step) {
@@ -109,31 +134,6 @@ export function writeChunks(
     });
   }
   return result;
-}
-
-export interface Reader {
-  int32(): number;
-  done(): void;
-}
-
-export interface Writer {
-  string(str: string): void;
-  finalize(): void;
-}
-
-export interface Ops {
-  writer?: Writer;
-  reader?: Reader;
-  readIfFallback?: () => Promise<FileAttr>;
-  open(): void;
-  readMeta(): FileAttr | undefined;
-  close(): void;
-  delete(): void;
-  readBlocks(positions: number[], blockSize: number): Block[];
-  writeMeta(meta: FileAttr): void;
-  writeBlocks(blocks: Block[], blockSize: number): number;
-  lock(lockType: number): boolean;
-  unlock(lockType: number): void;
 }
 
 export class File {

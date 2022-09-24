@@ -1,11 +1,6 @@
-import {
-  readChunks,
-  writeChunks,
-  File,
-  getBoundaryIndexes
-} from './sqlite-file';
-import MemoryBackend from './memory/backend';
-import * as fc from 'fast-check';
+import * as fc from "fast-check";
+import MemoryBackend from "./memory/backend";
+import { getBoundaryIndexes, readChunks, writeChunks } from "./sqlite-file";
 
 function setPageSize(view) {
   if (view.byteLength >= 17) {
@@ -24,7 +19,7 @@ function makeChunks(chunkSize, data) {
   for (let i = 0; i < data.length; i += chunkSize) {
     arr.push({
       pos: i,
-      data: Int8Array.from(data.slice(i, i + chunkSize)).buffer
+      data: Int8Array.from(data.slice(i, i + chunkSize)).buffer,
     });
   }
   return arr;
@@ -39,28 +34,19 @@ function zeroBuffer(size) {
   return buffer;
 }
 
-describe('chunks', () => {
-  test('reading', () => {
+describe("chunks", () => {
+  test("reading", () => {
     let chunks = makeChunks(3, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
 
     expect(toArray(readChunks(chunks, 1, 7))).toEqual([1, 2, 3, 4, 5, 6]);
     expect(toArray(readChunks(chunks, 0, 7))).toEqual([0, 1, 2, 3, 4, 5, 6]);
     expect(toArray(readChunks(chunks, 0, 10))).toEqual([
-      0,
-      1,
-      2,
-      3,
-      4,
-      5,
-      6,
-      7,
-      8,
-      9
+      0, 1, 2, 3, 4, 5, 6, 7, 8, 9,
     ]);
     expect(toArray(readChunks(chunks, 5, 12))).toEqual([5, 6, 7, 8, 9, 0, 0]);
   });
 
-  test('writing', () => {
+  test("writing", () => {
     let buffer = new ArrayBuffer(20);
     let view = new Uint8Array(buffer);
     for (let i = 0; i < buffer.byteLength; i++) {
@@ -83,14 +69,14 @@ describe('chunks', () => {
       pos,
       pos + length
     );
-    expect(res.map(res => ({ ...res, data: toArray(res.data) }))).toEqual([
+    expect(res.map((res) => ({ ...res, data: toArray(res.data) }))).toEqual([
       { pos: 0, offset: 2, length: 6, data: [0, 0, 4, 5, 6, 7, 8, 9] },
-      { pos: 8, offset: 0, length: 4, data: [10, 11, 12, 13, 0, 0, 0, 0] }
+      { pos: 8, offset: 0, length: 4, data: [10, 11, 12, 13, 0, 0, 0, 0] },
     ]);
   });
 });
 
-describe('reading file', () => {
+describe("reading file", () => {
   function readPropTest(bufferView, chunkSize, pos, length) {
     setPageSize(bufferView);
     if (bufferView.buffer.byteLength < length) {
@@ -98,11 +84,11 @@ describe('reading file', () => {
     }
 
     // Needs the meta with it
-    let files = { 'file.db': bufferView.buffer };
+    let files = { "file.db": bufferView.buffer };
 
     let backend = new MemoryBackend(chunkSize, files);
 
-    let file = backend.createFile('file.db');
+    let file = backend.createFile("file.db");
     file.open();
 
     let offset = 0;
@@ -130,12 +116,12 @@ describe('reading file', () => {
     }
   }
 
-  test('read-counter', () => {
+  test("read-counter", () => {
     let counter = [Int8Array.from([]), 1, 0, -1];
     readPropTest(...counter);
   });
 
-  test('read-prop', () => {
+  test("read-prop", () => {
     fc.assert(
       fc.property(
         // buffer
@@ -155,7 +141,7 @@ describe('reading file', () => {
 
 // TODO: write prop test for reading file that has pending writes
 
-describe('writing file', () => {
+describe("writing file", () => {
   function applyWrite(
     file,
     original,
@@ -200,10 +186,10 @@ describe('writing file', () => {
 
   function writePropTest(bufferView, chunkSize, writeDataView, length, pos) {
     setPageSize(bufferView);
-    let files = { 'file.db': bufferView.buffer };
+    let files = { "file.db": bufferView.buffer };
     let backend = new MemoryBackend(chunkSize, files);
 
-    let file = backend.createFile('file.db');
+    let file = backend.createFile("file.db");
     file.open();
     let original = file.ops.data.slice(0);
     let maxPos = file.getattr().size;
@@ -225,16 +211,16 @@ describe('writing file', () => {
 
     file.fsync();
 
-    let fileInfo = backend.getFile('file.db');
+    let fileInfo = backend.getFile("file.db");
     expect(toArray(fileInfo.ops.data)).toEqual(toArray(original));
     expect(fileInfo.getattr().size).toBe(maxPos);
   }
 
   function writePropTest2(bufferView, chunkSize, arr) {
-    let files = { 'file.db': bufferView.buffer };
+    let files = { "file.db": bufferView.buffer };
     let backend = new MemoryBackend(chunkSize, files);
 
-    let file = backend.createFile('file.db');
+    let file = backend.createFile("file.db");
     file.open();
     let original2 = file.ops.data.slice(0);
     let original = file.ops.data.slice(0);
@@ -270,12 +256,12 @@ describe('writing file', () => {
     expect(file.getattr().size).toBe(maxPos);
   }
 
-  test('write-counter', () => {
+  test("write-counter", () => {
     let counter = [Uint8Array.from([]), 1, [[Uint8Array.from([0]), 0, 1]]];
     writePropTest2(...counter);
   });
 
-  test('write-prop1', () => {
+  test("write-prop1", () => {
     fc.assert(
       fc.property(
         // buffer
@@ -293,7 +279,7 @@ describe('writing file', () => {
     );
   });
 
-  test('write-prop2', () => {
+  test("write-prop2", () => {
     fc.assert(
       fc.property(
         // buffer

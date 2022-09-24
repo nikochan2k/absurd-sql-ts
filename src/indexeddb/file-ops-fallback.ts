@@ -1,12 +1,8 @@
-import { LOCK_TYPES, isSafeToWrite, getPageSize } from "../sqlite-util";
 import idbReady from "safari-14-idb-fix";
-import { Block, FileAttr } from "../sqlite-types";
 import { Ops } from "../sqlite-file";
-
-export interface Item {
-  key: number;
-  value: ArrayBufferLike | FileAttr;
-}
+import { Block, FileAttr } from "../sqlite-types";
+import { getPageSize, isSafeToWrite, LOCK_TYPES } from "../sqlite-util";
+import { Item } from "./types";
 
 function positionToKey(pos: number, blockSize: number) {
   // We are forced to round because of floating point error. `pos`

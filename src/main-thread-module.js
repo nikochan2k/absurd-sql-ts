@@ -9,7 +9,7 @@
 
 function isWorker() {
   return (
-    typeof WorkerGlobalScope !== 'undefined' &&
+    typeof WorkerGlobalScope !== "undefined" &&
     self instanceof WorkerGlobalScope
   );
 }
@@ -18,23 +18,23 @@ function makeStartWorkerFromMain(getModule) {
   return (argBuffer, resultBuffer, parentWorker) => {
     if (isWorker()) {
       throw new Error(
-        '`startWorkerFromMain` should only be called from the main thread'
+        "`startWorkerFromMain` should only be called from the main thread"
       );
     }
 
-    if (typeof Worker === 'undefined') {
+    if (typeof Worker === "undefined") {
       // We're on the main thread? Weird: it doesn't have workers
       throw new Error(
-        'Web workers not available. sqlite3 requires web workers to work.'
+        "Web workers not available. sqlite3 requires web workers to work."
       );
     }
 
     getModule().then(({ default: BackendWorker }) => {
       let worker = new BackendWorker();
 
-      worker.postMessage({ type: 'init', buffers: [argBuffer, resultBuffer] });
+      worker.postMessage({ type: "init", buffers: [argBuffer, resultBuffer] });
 
-      worker.addEventListener('message', msg => {
+      worker.addEventListener("message", (msg) => {
         // Forward any messages to the worker that's supposed
         // to be the parent
         parentWorker.postMessage(msg.data);
@@ -46,8 +46,8 @@ function makeStartWorkerFromMain(getModule) {
 export function makeInitBackend(spawnEventName, getModule) {
   const startWorkerFromMain = makeStartWorkerFromMain(getModule);
 
-  return worker => {
-    worker.addEventListener('message', e => {
+  return (worker) => {
+    worker.addEventListener("message", (e) => {
       switch (e.data.type) {
         case spawnEventName:
           startWorkerFromMain(e.data.argBuffer, e.data.resultBuffer, worker);

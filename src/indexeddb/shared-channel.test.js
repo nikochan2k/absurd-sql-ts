@@ -1,5 +1,5 @@
-import { Reader, Writer } from './shared-channel';
-import * as fc from 'fast-check';
+import { Reader, Writer } from "./shared-channel";
+import * as fc from "fast-check";
 
 // describe('reader/writer', () => {
 //   function propTest(data) {
@@ -70,7 +70,7 @@ function checkDone(reader) {
   }
 }
 
-describe('reader/writer worker', () => {
+describe("reader/writer worker", () => {
   function propTest(data) {
     // There's a chance this will fill up, but we allocate a large
     // enough buffer that the prop test never reaches the limit
@@ -78,11 +78,11 @@ describe('reader/writer worker', () => {
     let buffer = new ArrayBuffer(size);
     let writer = new Writer(buffer, {
       useAtomics: false,
-      stream: true
+      stream: true,
     });
     let reader = new Reader(buffer, {
       useAtomics: false,
-      stream: true
+      stream: true,
     });
 
     let int32 = new Int32Array(buffer);
@@ -95,14 +95,14 @@ describe('reader/writer worker', () => {
         // Readable
         case 1: {
           let item = writeLog.shift();
-          if (typeof item === 'string') {
+          if (typeof item === "string") {
             expect(reader.string()).toBe(item);
-          } else if (typeof item === 'number') {
+          } else if (typeof item === "number") {
             expect(reader.int32()).toBe(item);
           } else if (item.buffer) {
             expect(reader.bytes()).toEqual(item.buffer);
           } else {
-            throw new Error('Unknown type: ' + item);
+            throw new Error("Unknown type: " + item);
           }
           break;
         }
@@ -112,14 +112,14 @@ describe('reader/writer worker', () => {
           if (cur < data.length) {
             let item = data[cur];
 
-            if (typeof item === 'string') {
+            if (typeof item === "string") {
               writer.string(item);
-            } else if (typeof item === 'number') {
+            } else if (typeof item === "number") {
               writer.int32(item);
             } else if (item.buffer) {
               writer.bytes(item.buffer);
             } else {
-              throw new Error('Unknown type: ' + item);
+              throw new Error("Unknown type: " + item);
             }
 
             writeLog.push(item);
@@ -131,17 +131,17 @@ describe('reader/writer worker', () => {
         }
 
         default:
-          throw new Error('Unknown read/write state: ' + state);
+          throw new Error("Unknown read/write state: " + state);
       }
     }
     expect(writeLog.length).toBe(0);
   }
 
-  it('counter', () => {
+  it("counter", () => {
     propTest([-2]);
   });
 
-  it('works', () => {
+  it("works", () => {
     fc.assert(
       fc.property(
         fc.array(fc.oneof(fc.integer(), fc.uint8Array(), fc.string())),

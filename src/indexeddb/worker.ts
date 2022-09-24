@@ -1,7 +1,7 @@
 import { Block, FileAttr } from "../sqlite-types";
 import { isSafeToWrite, LOCK_TYPES } from "../sqlite-util";
-import { Item } from "./file-ops-fallback";
 import { Reader, Writer } from "./shared-channel";
+import { Item } from "./types";
 
 let isProbablySafari = /^((?!chrome|android).)*safari/i.test(
   navigator.userAgent
