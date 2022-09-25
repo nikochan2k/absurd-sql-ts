@@ -3,7 +3,7 @@
   "version": "0.0.55",
   "main": "./dist/index.js",
   "scripts": {
-    "clean": "rimraf ./lib ./tsconfig.tsbuildinfo",
+    "clean": "rimraf ./lib ./tsconfig.tsbuildinfo /dist",
     "compile": "tsc",
     "copy": "ncp src/examples lib/examples",
     "build": "npm-run-all clean compile copy",
