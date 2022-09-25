@@ -99,12 +99,12 @@ interface StreamOps {
 interface Node {
   id: number;
   node_ops: NodeOps;
-  stream_ops: StreamOps | {};
+  stream_ops?: StreamOps;
   mode: number;
   rdev: number;
   size: number;
   timestamp: number;
-  contents: File | { [name: string]: Node };
+  contents?: File;
 }
 
 enum ERRNO_CODES {
@@ -292,8 +292,8 @@ export default class SQLiteFS {
         unlink: this.node_ops.unlink,
         setattr: this.node_ops.setattr,
       };
-      node.stream_ops = {};
-      node.contents = {};
+      // node.stream_ops = {};
+      // node.contents = {};
     } else if (this.fs.isFile(node.mode)) {
       node.node_ops = this.node_ops;
       node.stream_ops = this.stream_ops;
@@ -304,7 +304,7 @@ export default class SQLiteFS {
 
     // add the new node to the parent
     if (parent) {
-      (parent.contents as { [name: string]: Node })[name] = node;
+      // (parent.contents as { [name: string]: Node })[name] = node;
       parent.timestamp = node.timestamp;
     }
 
