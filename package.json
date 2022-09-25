@@ -9,6 +9,8 @@
     "build": "npm-run-all clean compile rollup",
     "jest": "jest",
     "jest-debug": "jest --runInBand --useStderr",
+    "test": "npm-run-all compile jest",
+    "test-debug": "npm-run-all compile jest-debug",
     "serve": "cd src/examples && ../../node_modules/.bin/webpack serve"
   },
   "devDependencies": {

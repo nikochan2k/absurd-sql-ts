@@ -266,7 +266,7 @@ export class File {
         ![512, 1024, 2048, 4096, 8192, 16384, 32768, 65536].includes(pageSize)
       ) {
         throw new Error(
-          "File has invalid page size. (the first block of a new file must be written first)"
+          `File has invalid page size. (the first block of a new file must be written first): ${pageSize}`
         );
       }
 
