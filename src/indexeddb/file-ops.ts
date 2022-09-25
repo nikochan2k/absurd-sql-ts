@@ -1,4 +1,10 @@
-import { Block, FileAttr, LOCK_TYPES, Ops } from "../sqlite-types";
+import {
+  Block,
+  DEFAULT_BLOCK_SIZE,
+  FileAttr,
+  LOCK_TYPES,
+  Ops,
+} from "../sqlite-types";
 import { Reader, Writer } from "./shared-channel";
 
 function positionToKey(pos: number, blockSize: number) {
@@ -202,13 +208,13 @@ export class FileOps implements Ops {
   }
 
   open() {
-    const argBuffer = new SharedArrayBuffer(4096 * 9);
+    const argBuffer = new SharedArrayBuffer(DEFAULT_BLOCK_SIZE * 9);
     this.writer = new Writer(argBuffer, {
       name: "args (backend)",
       debug: false,
     });
 
-    const resultBuffer = new SharedArrayBuffer(4096 * 9);
+    const resultBuffer = new SharedArrayBuffer(DEFAULT_BLOCK_SIZE * 9);
     this.reader = new Reader(resultBuffer, {
       name: "results",
       debug: false,

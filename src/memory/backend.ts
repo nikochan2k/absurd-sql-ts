@@ -1,6 +1,6 @@
 import { IBackend } from "../backend";
 import { File } from "../sqlite-file";
-import { Block, FileAttr, Ops } from "../sqlite-types";
+import { Block, DEFAULT_BLOCK_SIZE, FileAttr, Ops } from "../sqlite-types";
 
 class FileOps implements Ops {
   public locked = false;
@@ -92,7 +92,7 @@ class FileOps implements Ops {
 }
 
 export default class MemoryBackend implements IBackend {
-  defaultBlockSize = 4096;
+  defaultBlockSize = DEFAULT_BLOCK_SIZE;
   fileData: { [name: string]: ArrayBufferLike } = {};
   files: { [name: string]: File } = {};
 

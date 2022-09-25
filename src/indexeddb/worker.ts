@@ -1,4 +1,9 @@
-import { Block, FileAttr, LOCK_TYPES } from "../sqlite-types";
+import {
+  Block,
+  DEFAULT_BLOCK_SIZE,
+  FileAttr,
+  LOCK_TYPES,
+} from "../sqlite-types";
 import { isSafeToWrite } from "../sqlite-util";
 import { Reader, Writer } from "./shared-channel";
 import { Item } from "./types";
@@ -529,7 +534,7 @@ async function handleReadMeta(writer: Writer, name: string) {
       if (res == null) {
         // No data yet
         writer.int32(-1);
-        writer.int32(4096);
+        writer.int32(DEFAULT_BLOCK_SIZE);
         writer.finalize();
       } else {
         // let meta = res;
@@ -539,7 +544,7 @@ async function handleReadMeta(writer: Writer, name: string) {
 
         // There should always be a first block if we have meta, but
         // in case of a corrupted db, default to this size
-        let blockSize = 4096;
+        let blockSize = DEFAULT_BLOCK_SIZE;
         if (block) {
           const arr = new Uint16Array(block);
           blockSize = arr[8] * 256;

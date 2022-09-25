@@ -47,3 +47,5 @@ export interface Ops {
   lock(lockType: LOCK_TYPES): boolean;
   unlock(lockType: LOCK_TYPES): void;
 }
+
+export const DEFAULT_BLOCK_SIZE = 4096;

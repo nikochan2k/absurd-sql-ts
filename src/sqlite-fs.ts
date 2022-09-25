@@ -1,6 +1,6 @@
 import { IBackend } from "./backend";
 import { File } from "./sqlite-file";
-import { LOCK_TYPES } from "./sqlite-types";
+import { DEFAULT_BLOCK_SIZE, LOCK_TYPES } from "./sqlite-types";
 
 interface ErrornoErrorConstructor {
   new (errno: number): any;
@@ -132,8 +132,12 @@ export default class SQLiteFS {
           ? node.contents!.getattr!()
           : null;
 
-        const size = fileattr ? fileattr.size! : fs.isDir(node.mode) ? 4096 : 0;
-        const blksize = fileattr ? fileattr.blockSize! : 4096;
+        const size = fileattr
+          ? fileattr.size!
+          : fs.isDir(node.mode)
+          ? DEFAULT_BLOCK_SIZE
+          : 0;
+        const blksize = fileattr ? fileattr.blockSize! : DEFAULT_BLOCK_SIZE;
         const attr: Attr = {
           dev: 1,
           ino: node.id,
