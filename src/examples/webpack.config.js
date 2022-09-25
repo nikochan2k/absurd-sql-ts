@@ -6,6 +6,7 @@ function getConfig(name, entry, html) {
     name,
     devServer: {
       static: {
+        directory: __dirname,
         publicPath: "/",
       },
       hot: true,
