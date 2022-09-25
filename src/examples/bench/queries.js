@@ -1,5 +1,5 @@
 if (globalThis.performance == null) {
-  globalThis.performance = require('perf_hooks').performance;
+  globalThis.performance = require("perf_hooks").performance;
 }
 
 function uid(i) {
@@ -7,48 +7,48 @@ function uid(i) {
   // some larger data than just ints (something like a uuid) but we
   // don't want to actually generate uuids because that's slow-ish and
   // we want profiling to show sqlite as much as possible
-  return '0000000000000000000000000' + i;
+  return "0000000000000000000000000" + i;
 }
 
 function formatNumber(num) {
-  return new Intl.NumberFormat('en-US').format(num);
+  return new Intl.NumberFormat("en-US").format(num);
 }
 
 async function clear(db, output = console.log) {
-  output('Clearing existing data');
+  output("Clearing existing data");
   db.exec(`
     BEGIN TRANSACTION;
     DROP TABLE IF EXISTS kv;
     CREATE TABLE kv (key TEXT, value TEXT);
     COMMIT;
   `);
-  output('Done');
+  output("Done");
 }
 
 function populate(db, count, output = console.log, outputTiming = console.log) {
   let start = Date.now();
-  db.exec('BEGIN TRANSACTION');
-  let stmt = db.prepare('INSERT INTO kv (key, value) VALUES (?, ?)');
+  db.exec("BEGIN TRANSACTION");
+  let stmt = db.prepare("INSERT INTO kv (key, value) VALUES (?, ?)");
 
   output(`Inserting ${formatNumber(count)} items`);
 
   for (let i = 0; i < count; i++) {
     stmt.run([uid(i), ((Math.random() * 100) | 0).toString()]);
   }
-  db.exec('COMMIT');
+  db.exec("COMMIT");
   let took = Date.now() - start;
-  output('Done! Took: ' + took);
+  output("Done! Took: " + took);
   outputTiming(took);
 }
 
 function sumAll(db, output = console.log, outputTiming = console.log) {
-  output('Running <code>SELECT COUNT(*) FROM kv</code>');
+  output("Running <code>SELECT COUNT(*) FROM kv</code>");
 
   let stmt;
   try {
     stmt = db.prepare(`SELECT SUM(value) FROM kv`);
   } catch (err) {
-    output('Error (make sure you write data first): ' + err.message);
+    output("Error (make sure you write data first): " + err.message);
     throw err;
   }
 
@@ -66,11 +66,11 @@ function sumAll(db, output = console.log, outputTiming = console.log) {
   }
 
   let took = performance.now() - start;
-  output('<code>' + JSON.stringify(row) + '</code>');
+  output("<code>" + JSON.stringify(row) + "</code>");
 
   outputTiming(took);
-  output('Done reading, took ' + formatNumber(took) + 'ms');
-  output('That scanned through all of the data');
+  output("Done reading, took " + formatNumber(took) + "ms");
+  output("That scanned through all of the data");
 }
 
 async function randomReads(
@@ -79,7 +79,7 @@ async function randomReads(
   outputTiming = console.log
 ) {
   output(
-    'Running <code>SELECT key FROM kv LIMIT 1000 OFFSET ?</code> 20 times with increasing offset'
+    "Running <code>SELECT key FROM kv LIMIT 1000 OFFSET ?</code> 20 times with increasing offset"
   );
   let start = Date.now();
 
@@ -87,7 +87,7 @@ async function randomReads(
   try {
     stmt = db.prepare(`SELECT key FROM kv LIMIT 1000 OFFSET ?`);
   } catch (err) {
-    output('Error (make sure you write data first): ' + err.message);
+    output("Error (make sure you write data first): " + err.message);
     throw err;
   }
 
@@ -131,7 +131,7 @@ async function randomReads(
 
   let took = Date.now() - start;
   outputTiming(took);
-  output('Done reading, took ' + formatNumber(took) + 'ms');
+  output("Done reading, took " + formatNumber(took) + "ms");
 }
 
 module.exports = { clear, populate, sumAll, randomReads };

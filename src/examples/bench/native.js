@@ -1,7 +1,7 @@
-const queries = require('./queries');
+const queries = require("./queries");
 
-let Database = require('better-sqlite3');
-let db = new Database(__dirname + '/db.sqlite');
+let Database = require("better-sqlite3");
+let db = new Database(__dirname + "/db.sqlite");
 
 let cacheSize = 0;
 

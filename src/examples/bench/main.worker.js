@@ -1,12 +1,12 @@
-import initSqlJs from '@jlongster/sql.js';
-import { SQLiteFS } from '../..';
-import MemoryBackend from '../../memory/backend';
-import IndexedDBBackend from '../../indexeddb/backend';
-import * as queries from './queries';
-import * as rawIDBQueries from './queries-raw-idb';
+import initSqlJs from "@jlongster/sql.js";
+import { SQLiteFS } from "../..";
+import MemoryBackend from "../../memory/backend";
+import IndexedDBBackend from "../../indexeddb/backend";
+import * as queries from "./queries";
+import * as rawIDBQueries from "./queries-raw-idb";
 
 // Various global state for the demo
-let currentBackendType = 'idb';
+let currentBackendType = "idb";
 let cacheSize = 0;
 let pageSize = 4096;
 let dbName = `db21.sqlite`;
@@ -15,7 +15,7 @@ let useRawIDB = false;
 
 let memoryBackend = new MemoryBackend({});
 let idbBackend = new IndexedDBBackend(() => {
-  console.error('Unable to write!');
+  console.error("Unable to write!");
 });
 let sqlFS;
 
@@ -24,23 +24,23 @@ let sqlFS;
 let SQL = null;
 async function init() {
   if (SQL == null) {
-    SQL = await initSqlJs({ locateFile: file => file });
+    SQL = await initSqlJs({ locateFile: (file) => file });
     sqlFS = new SQLiteFS(SQL.FS, idbBackend);
     SQL.register_for_idb(sqlFS);
 
-    if (typeof SharedArrayBuffer === 'undefined') {
+    if (typeof SharedArrayBuffer === "undefined") {
       output(
-        '<code>SharedArrayBuffer</code> is not available in your browser. Falling back.'
+        "<code>SharedArrayBuffer</code> is not available in your browser. Falling back."
       );
     }
 
-    SQL.FS.mkdir('/blocked');
-    SQL.FS.mount(sqlFS, {}, '/blocked');
+    SQL.FS.mkdir("/blocked");
+    SQL.FS.mount(sqlFS, {}, "/blocked");
   }
 }
 
 function getPageSize(db) {
-  let stmt = db.prepare('PRAGMA page_size');
+  let stmt = db.prepare("PRAGMA page_size");
   stmt.step();
   let row = stmt.getAsObject();
   stmt.free();
@@ -48,15 +48,15 @@ function getPageSize(db) {
 }
 
 function output(msg) {
-  self.postMessage({ type: 'output', msg });
+  self.postMessage({ type: "output", msg });
 }
 
 function clearTimings() {
-  self.postMessage({ type: 'clearTimings' });
+  self.postMessage({ type: "clearTimings" });
 }
 
 function outputTiming(timing) {
-  self.postMessage({ type: 'outputTiming', timing });
+  self.postMessage({ type: "outputTiming", timing });
 }
 
 let _db = null;
@@ -70,18 +70,18 @@ function closeDatabase() {
 
 async function getRawIDBDatabase() {
   return new Promise((resolve, reject) => {
-    let req = globalThis.indexedDB.open('raw-db');
-    req.onsuccess = e => {
+    let req = globalThis.indexedDB.open("raw-db");
+    req.onsuccess = (e) => {
       resolve(e.target.result);
     };
-    req.onupgradeneeded = e => {
+    req.onupgradeneeded = (e) => {
       let db = e.target.result;
-      if (!db.objectStoreNames.contains('kv')) {
-        db.createObjectStore('kv');
+      if (!db.objectStoreNames.contains("kv")) {
+        db.createObjectStore("kv");
       }
     };
-    req.onblocked = e => {
-      console.log('opening db is blocked');
+    req.onblocked = (e) => {
+      console.log("opening db is blocked");
     };
   });
 }
@@ -96,8 +96,8 @@ async function getDatabase() {
 
     let path = `/blocked/${dbName}`;
 
-    if (typeof SharedArrayBuffer === 'undefined') {
-      let stream = SQL.FS.open(path, 'a+');
+    if (typeof SharedArrayBuffer === "undefined") {
+      let stream = SQL.FS.open(path, "a+");
       await stream.node.contents.readIfFallback();
       SQL.FS.close(stream);
     }
@@ -118,8 +118,8 @@ async function getDatabase() {
     let curPageSize = getPageSize(_db);
 
     if (curPageSize !== pageSize) {
-      output('Page size has changed, running VACUUM to restructure db');
-      _db.exec('VACUUM');
+      output("Page size has changed, running VACUUM to restructure db");
+      _db.exec("VACUUM");
       // Vacuuming resets the cache size, so set it back
       _db.exec(`PRAGMA cache_size=-${cacheSize}`);
       output(`Page size is now ${getPageSize(_db)}`);
@@ -130,7 +130,7 @@ async function getDatabase() {
 }
 
 function formatNumber(num) {
-  return new Intl.NumberFormat('en-US').format(num);
+  return new Intl.NumberFormat("en-US").format(num);
 }
 
 async function populate(count, { timings = true } = {}) {
@@ -156,11 +156,11 @@ async function populate(count, { timings = true } = {}) {
     let file = node.contents;
 
     output(
-      'File is now: ' +
+      "File is now: " +
         formatNumber(file.meta.size / 1024) +
-        'KB as ' +
+        "KB as " +
         formatNumber(file.meta.size / 4096) +
-        ' blocks'
+        " blocks"
     );
   }
 }
@@ -175,9 +175,9 @@ async function populateLarge() {
   clearTimings();
 
   let count = 400000;
-  if (currentBackendType === 'memory') {
+  if (currentBackendType === "memory") {
     output(
-      'Cannot write 1,000,000 items to memory backend, reducing to 100,000'
+      "Cannot write 1,000,000 items to memory backend, reducing to 100,000"
     );
     count = 100000;
   }
@@ -231,7 +231,7 @@ async function prepBench() {
   // Force the db to open and wait a bit to ensure everything is ready
   // (so we don't see any perf hit on the first read)
   await getDatabase();
-  await new Promise(resolve => setTimeout(resolve, 1000));
+  await new Promise((resolve) => setTimeout(resolve, 1000));
 }
 
 async function readBench() {
@@ -260,7 +260,7 @@ async function deleteFile() {
   closeDatabase();
 
   if (useRawIDB) {
-    globalThis.indexedDB.deleteDatabase('raw-db');
+    globalThis.indexedDB.deleteDatabase("raw-db");
     return;
   }
 
@@ -287,21 +287,21 @@ let methods = {
   randomReads,
   deleteFile,
   readBench,
-  writeBench
+  writeBench,
 };
 
-if (typeof self !== 'undefined') {
-  self.onmessage = msg => {
+if (typeof self !== "undefined") {
+  self.onmessage = (msg) => {
     switch (msg.data.type) {
-      case 'ui-invoke':
+      case "ui-invoke":
         if (methods[msg.data.name] == null) {
-          throw new Error('Unknown method: ' + msg.data.name);
+          throw new Error("Unknown method: " + msg.data.name);
         }
         methods[msg.data.name]();
         break;
 
-      case 'run-query': {
-        getDatabase().then(db => {
+      case "run-query": {
+        getDatabase().then((db) => {
           let stmt = db.prepare(msg.data.sql);
           let rows = [];
           while (stmt.step()) {
@@ -309,37 +309,37 @@ if (typeof self !== 'undefined') {
           }
           stmt.free();
           self.postMessage({
-            type: 'query-results',
+            type: "query-results",
             data: rows,
-            id: msg.data.id
+            id: msg.data.id,
           });
         });
         break;
       }
 
-      case 'profiling': {
+      case "profiling": {
         recordProfile = msg.data.on;
         break;
       }
 
-      case 'options':
+      case "options":
         switch (msg.data.name) {
-          case 'backend':
+          case "backend":
             closeDatabase();
             currentBackendType = msg.data.value;
             // We dont really support swapping the backend like this,
             // but it works for the demo
-            if (currentBackendType === 'memory') {
+            if (currentBackendType === "memory") {
               sqlFS.backend = memoryBackend;
             } else {
               sqlFS.backend = idbBackend;
             }
             break;
 
-          case 'cacheSize': {
+          case "cacheSize": {
             cacheSize = parseInt(msg.data.value);
 
-            getDatabase().then(db => {
+            getDatabase().then((db) => {
               db.exec(`
                 PRAGMA cache_size=-${cacheSize};
               `);
@@ -349,7 +349,7 @@ if (typeof self !== 'undefined') {
             break;
           }
 
-          case 'pageSize': {
+          case "pageSize": {
             closeDatabase();
             pageSize = parseInt(msg.data.value);
             // This will force the db to load which checks the
@@ -358,14 +358,14 @@ if (typeof self !== 'undefined') {
             break;
           }
 
-          case 'raw-idb': {
+          case "raw-idb": {
             if (msg.data.on !== useRawIDB) {
               closeDatabase();
               useRawIDB = msg.data.on;
               if (useRawIDB) {
-                output('Switched to using raw IndexedDB');
+                output("Switched to using raw IndexedDB");
               } else {
-                output('Switched to using SQLIte');
+                output("Switched to using SQLIte");
               }
             }
             break;
@@ -378,7 +378,7 @@ if (typeof self !== 'undefined') {
   for (let method of Object.keys(methods)) {
     let btn = document.querySelector(`#${method}`);
     if (btn) {
-      btn.addEventListener('click', methods[method]);
+      btn.addEventListener("click", methods[method]);
     }
   }
   init();

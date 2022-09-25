@@ -3,16 +3,16 @@ function uid(i) {
   // some larger data than just ints (something like a uuid) but we
   // don't want to actually generate uuids because that's slow-ish and
   // we want profiling to show sqlite as much as possible
-  return '0000000000000000000000000' + i;
+  return "0000000000000000000000000" + i;
 }
 
 function formatNumber(num) {
-  return new Intl.NumberFormat('en-US').format(num);
+  return new Intl.NumberFormat("en-US").format(num);
 }
 
 export function clear(db, output) {
-  let trans = db.transaction(['kv'], 'readwrite');
-  let store = trans.objectStore('kv');
+  let trans = db.transaction(["kv"], "readwrite");
+  let store = trans.objectStore("kv");
   return new Promise((resolve, reject) => {
     let req = store.clear();
     req.onsuccess = resolve;
@@ -22,8 +22,8 @@ export function clear(db, output) {
 
 export function populate(db, count, output, outputTiming) {
   let start = Date.now();
-  let trans = db.transaction(['kv'], 'readwrite');
-  let store = trans.objectStore('kv');
+  let trans = db.transaction(["kv"], "readwrite");
+  let store = trans.objectStore("kv");
 
   output(`Inserting ${formatNumber(count)} items (raw idb)`);
 
@@ -35,7 +35,7 @@ export function populate(db, count, output, outputTiming) {
     }
     trans.oncomplete = () => {
       let took = Date.now() - start;
-      output('Done! Took: ' + took);
+      output("Done! Took: " + took);
       outputTiming(took);
       resolve();
     };
@@ -45,15 +45,15 @@ export function populate(db, count, output, outputTiming) {
 
 export function sumAll(db, output, outputTiming) {
   let start = Date.now();
-  let trans = db.transaction(['kv'], 'readonly');
-  let store = trans.objectStore('kv');
+  let trans = db.transaction(["kv"], "readonly");
+  let store = trans.objectStore("kv");
   let count = 0;
-  output('Running a sum on all values');
+  output("Running a sum on all values");
 
   return new Promise((resolve, reject) => {
     let req = store.openCursor();
     let total = 0;
-    req.onsuccess = e => {
+    req.onsuccess = (e) => {
       let cursor = e.target.result;
       if (cursor) {
         count++;
@@ -71,7 +71,7 @@ export function sumAll(db, output, outputTiming) {
 }
 
 export function randomReads(db, output) {
-  output('randomReads is not implemented for raw idb yet');
+  output("randomReads is not implemented for raw idb yet");
   // let trans = db.transaction(['kv'], 'readonly');
   // let store = trans.objectStore('kv');
   // return new Promise((resolve, reject) => {

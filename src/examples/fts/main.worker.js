@@ -1,12 +1,11 @@
-import initSqlJs from '@jlongster/sql.js';
-import { SQLiteFS } from '../..';
-import * as uuid from 'uuid';
-import MemoryBackend from '../../memory/backend';
-import IndexedDBBackend from '../../indexeddb/backend';
+import initSqlJs from "@jlongster/sql.js";
+import { SQLiteFS } from "../..";
+// import MemoryBackend from '../../memory/backend';
+import IndexedDBBackend from "../../indexeddb/backend";
 
 // Various global state for the demo
 
-let currentBackendType = 'idb';
+let currentBackendType = "idb";
 let cacheSize = 5000;
 let pageSize = 8192;
 let dbName = `fts.sqlite`;
@@ -19,12 +18,12 @@ let sqlFS;
 let SQL = null;
 let ready = null;
 async function _init() {
-  SQL = await initSqlJs({ locateFile: file => file });
+  SQL = await initSqlJs({ locateFile: (file) => file });
   sqlFS = new SQLiteFS(SQL.FS, idbBackend);
   SQL.register_for_idb(sqlFS);
 
-  SQL.FS.mkdir('/blocked');
-  SQL.FS.mount(sqlFS, {}, '/blocked');
+  SQL.FS.mkdir("/blocked");
+  SQL.FS.mount(sqlFS, {}, "/blocked");
 }
 
 function init() {
@@ -36,7 +35,7 @@ function init() {
 }
 
 function output(msg) {
-  self.postMessage({ type: 'output', msg });
+  self.postMessage({ type: "output", msg });
 }
 
 function getDBName() {
@@ -68,7 +67,7 @@ async function getDatabase() {
       PRAGMA page_size=${pageSize};
       PRAGMA journal_mode=MEMORY;
     `);
-    _db.exec('VACUUM');
+    _db.exec("VACUUM");
     output(
       `Opened ${getDBName()} (${currentBackendType}) cache size: ${cacheSize}`
     );
@@ -77,7 +76,7 @@ async function getDatabase() {
 }
 
 function formatNumber(num) {
-  return new Intl.NumberFormat('en-US').format(num);
+  return new Intl.NumberFormat("en-US").format(num);
 }
 
 async function fetchJSON(url) {
@@ -89,13 +88,13 @@ async function load() {
   let db = await getDatabase();
 
   let storyIds = await fetchJSON(
-    'https://hacker-news.firebaseio.com/v0/topstories.json?print=pretty'
+    "https://hacker-news.firebaseio.com/v0/topstories.json?print=pretty"
   );
 
   let stories = await Promise.all(
     storyIds
       .slice(0, 10)
-      .map(storyId =>
+      .map((storyId) =>
         fetchJSON(
           `https://hacker-news.firebaseio.com/v0/item/${storyId}.json?print=pretty`
         )
@@ -117,23 +116,23 @@ async function load() {
             id: commentId,
             text: comment.text,
             storyId: story.id,
-            storyTitle: story.title
+            storyTitle: story.title,
           });
         }
       }
     }
   }
 
-  db.exec('BEGIN TRANSACTION');
+  db.exec("BEGIN TRANSACTION");
   let stmt = db.prepare(
-    'INSERT INTO comments (content, url, title) VALUES (?, ?, ?)'
+    "INSERT INTO comments (content, url, title) VALUES (?, ?, ?)"
   );
   for (let result of results) {
     let url = `https://news.ycombinator.com/item?id=${result.id}`;
     stmt.run([result.text, url, result.storyTitle]);
   }
-  db.exec('COMMIT');
-  console.log('done!');
+  db.exec("COMMIT");
+  console.log("done!");
 
   count();
 }
@@ -141,7 +140,7 @@ async function load() {
 async function search(term) {
   let db = await getDatabase();
 
-  if (!term.includes('NEAR') && !term.match(/"\*/)) {
+  if (!term.includes("NEAR") && !term.match(/"\*/)) {
     term = `"*${term}*"`;
   }
 
@@ -157,7 +156,7 @@ async function search(term) {
   }
   stmt.free();
 
-  self.postMessage({ type: 'results', results });
+  self.postMessage({ type: "results", results });
 }
 
 async function count() {
@@ -167,10 +166,10 @@ async function count() {
     CREATE VIRTUAL TABLE IF NOT EXISTS comments USING fts3(content, title, url);
   `);
 
-  let stmt = db.prepare('SELECT COUNT(*) as count FROM comments');
+  let stmt = db.prepare("SELECT COUNT(*) as count FROM comments");
   stmt.step();
   let row = stmt.getAsObject();
-  self.postMessage({ type: 'count', count: row.count });
+  self.postMessage({ type: "count", count: row.count });
 
   stmt.free();
 }
@@ -179,19 +178,19 @@ let methods = {
   init,
   load,
   search,
-  count
+  count,
 };
 
-if (typeof self !== 'undefined') {
-  self.onmessage = msg => {
+if (typeof self !== "undefined") {
+  self.onmessage = (msg) => {
     switch (msg.data.type) {
-      case 'search':
+      case "search":
         search(msg.data.name);
         break;
 
-      case 'ui-invoke':
+      case "ui-invoke":
         if (methods[msg.data.name] == null) {
-          throw new Error('Unknown method: ' + msg.data.name);
+          throw new Error("Unknown method: " + msg.data.name);
         }
         methods[msg.data.name]();
         break;
@@ -201,7 +200,7 @@ if (typeof self !== 'undefined') {
   for (let method of Object.keys(methods)) {
     let btn = document.querySelector(`#${method}`);
     if (btn) {
-      btn.addEventListener('click', methods[method]);
+      btn.addEventListener("click", methods[method]);
     }
   }
   init();
