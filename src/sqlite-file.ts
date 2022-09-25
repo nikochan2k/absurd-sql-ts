@@ -119,7 +119,7 @@ export class File {
   constructor(
     public filename: string,
     public ops: Ops,
-    public meta: FileAttr = {}
+    public meta?: FileAttr
   ) {}
 
   bufferChunks(chunks: Block[]) {
@@ -183,7 +183,10 @@ export class File {
 
     let missingChunks: Block[] = [];
     if (status.missing.length > 0) {
-      missingChunks = this.ops.readBlocks(status.missing, this.meta.blockSize!);
+      missingChunks = this.ops.readBlocks(
+        status.missing,
+        this.meta!.blockSize!
+      );
     }
     return status.chunks.concat(missingChunks);
   }
@@ -204,7 +207,7 @@ export class File {
       // TODO: is this right?
       return 0;
     }
-    if (position >= this.meta.size!) {
+    if (position >= this.meta!.size!) {
       const view = new Uint8Array(buffer, offset);
       for (let i = 0; i < length; i++) {
         view[i] = 0;
@@ -214,12 +217,12 @@ export class File {
     }
 
     position = Math.max(position, 0);
-    const dataLength = Math.min(length, this.meta.size! - position);
+    const dataLength = Math.min(length, this.meta!.size! - position);
 
     const start = position;
     const end = position + dataLength;
 
-    const indexes = getBoundaryIndexes(this.meta.blockSize!, start, end);
+    const indexes = getBoundaryIndexes(this.meta!.blockSize!, start, end);
 
     const chunks = this.load(indexes);
     const readBuffer = readChunks(chunks, start, end);
@@ -246,7 +249,7 @@ export class File {
   ) {
     // console.log('writing', this.filename, offset, length, position);
 
-    if (this.meta.blockSize == null) {
+    if (this.meta!.blockSize == null) {
       // We don't have a block size yet (an empty file). The first
       // write MUST be the beginning of the file. This is a new file
       // and the first block contains the page size which we need.
@@ -289,7 +292,7 @@ export class File {
 
     const writes = writeChunks(
       new Uint8Array(buffer, offset, length),
-      this.meta.blockSize!,
+      this.meta!.blockSize!,
       position,
       position + length
     );
@@ -298,7 +301,7 @@ export class File {
     // existing data
     const { partialWrites, fullWrites } = writes.reduce(
       (state, write) => {
-        if (write.length !== this.meta.blockSize) {
+        if (write.length !== this.meta!.blockSize) {
           state.partialWrites.push(write);
         } else {
           state.fullWrites.push({
@@ -332,7 +335,7 @@ export class File {
 
     this.bufferChunks(allWrites);
 
-    if (position + length > this.meta.size!) {
+    if (position + length > this.meta!.size!) {
       this.setattr({ size: position + length });
     }
 
@@ -390,7 +393,7 @@ export class File {
       if (first) {
         const pageSize = getPageSize(new Uint8Array(first.data));
 
-        if (pageSize !== this.meta.blockSize) {
+        if (pageSize !== this.meta!.blockSize) {
           // The page size changed! We need to reflect that in our
           // storage. We need to restructure all pending writes and
           // change our page size so all future writes reflect the new
@@ -413,7 +416,7 @@ export class File {
           // about overwriting anything.
 
           const writes = [...buffer.values()];
-          const totalSize = writes.length * this.meta.blockSize!;
+          const totalSize = writes.length * this.meta!.blockSize!;
           const buf = new ArrayBuffer(totalSize);
           const view = new Uint8Array(buf);
 
@@ -429,7 +432,7 @@ export class File {
         }
       }
 
-      this.ops.writeBlocks([...this.buffer.values()], this.meta.blockSize!);
+      this.ops.writeBlocks([...this.buffer.values()], this.meta!.blockSize!);
     }
 
     if (this._metaDirty) {
@@ -442,7 +445,7 @@ export class File {
       // either!) but what we probably should do is detect a VACUUM
       // command (the whole db is being rewritten) and at that point
       // delete anything after the end of the file
-      this.ops.writeMeta({ size: this.meta.size });
+      this.ops.writeMeta({ size: this.meta!.size });
       this._metaDirty = false;
     }
 
@@ -472,6 +475,6 @@ export class File {
   }
 
   getattr(): FileAttr {
-    return this.meta;
+    return this.meta!;
   }
 }

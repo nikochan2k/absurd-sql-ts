@@ -211,7 +211,7 @@ export class FileOpsFallback implements Ops {
         blockSize: getPageSize(new Uint8Array(block)),
       };
     }
-    return {};
+    return undefined;
   }
 
   writeMeta(meta: FileAttr) {

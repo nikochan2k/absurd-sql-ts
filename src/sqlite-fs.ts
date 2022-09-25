@@ -129,8 +129,8 @@ export default class SQLiteFS {
     this.node_ops = {
       getattr: (node) => {
         const fileattr = fs.isFile(node.mode)
-          ? (node.contents as File).getattr!()
-          : null;
+          ? (node.contents as File).getattr()
+          : undefined;
 
         const size = fileattr
           ? fileattr.size!

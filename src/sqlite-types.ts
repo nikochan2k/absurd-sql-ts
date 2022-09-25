@@ -36,7 +36,7 @@ export interface IWriter {
 export interface Ops {
   writer?: IWriter;
   reader?: IReader;
-  readIfFallback?: () => Promise<FileAttr>;
+  readIfFallback?: () => Promise<FileAttr | undefined>;
   open(): void;
   readMeta(): FileAttr | undefined;
   close(): void;

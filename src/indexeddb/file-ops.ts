@@ -234,7 +234,7 @@ export class FileOps implements Ops {
   readMeta() {
     return this.invokeWorker("readMeta", {
       name: this.storeName,
-    }) as FileAttr;
+    }) as FileAttr | undefined;
   }
 
   writeMeta(meta: FileAttr) {
