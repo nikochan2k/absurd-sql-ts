@@ -135,7 +135,7 @@ class Transaction {
     return null;
   }
 
-  public async prefetchFirstBlock(timeout: number) {
+  public async prefetchFirstBlock(_timeout: number) {
     // TODO: implement timeout
 
     // Get the first block and cache it

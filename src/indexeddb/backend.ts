@@ -27,7 +27,7 @@ export default class IndexedDBBackend implements IBackend {
     // If we don't need perf data, there's no reason for us to hold a
     // reference to the files. If we did we'd have to worry about
     // memory leaks
-    if (process.env.NODE_ENV !== "production" || process.env.PERF_BUILD) {
+    if (process.env["NODE_ENV"] !== "production" || process.env["PERF_BUILD"]) {
       this._files.add(file);
     }
 

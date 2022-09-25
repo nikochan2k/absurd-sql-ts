@@ -59,7 +59,7 @@ class FileOps implements Ops {
     });
   }
 
-  writeBlocks(writes: Block[], blockSize: number) {
+  writeBlocks(writes: Block[]) {
     // console.log('_writing', this.filename, writes);
     let data = this.data;
 
@@ -117,7 +117,7 @@ export default class MemoryBackend implements IBackend {
         )
       );
     }
-    return this.files[filename];
+    return this.files[filename] as File;
   }
 
   getFile(filename: string) {

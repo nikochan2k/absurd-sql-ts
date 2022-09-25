@@ -24,7 +24,6 @@ export function readChunks(chunks: Block[], start: number, end: number) {
   const buffer = new ArrayBuffer(end - start);
   const bufferView = new Uint8Array(buffer);
 
-  let cursor = 0;
   for (const chunk of chunks) {
     // TODO: jest has a bug where we can't do `instanceof ArrayBuffer`
     if (chunk.data.constructor.name !== "ArrayBuffer") {
@@ -51,7 +50,6 @@ export function readChunks(chunks: Block[], start: number, end: number) {
       new Uint8Array(chunk.data, cstart, len),
       chunk.pos - start + cstart
     );
-    cursor += len;
   }
 
   return buffer;

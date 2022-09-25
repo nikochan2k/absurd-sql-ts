@@ -173,6 +173,8 @@ export class FileOps implements Ops {
         return res === 0;
       }
     }
+
+    return undefined;
   }
 
   lock(lockType: LOCK_TYPES) {
