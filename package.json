@@ -14,7 +14,10 @@
     "test": "npm-run-all compile jest",
     "test-debug": "npm-run-all compile jest-debug",
     "webpack": "cd lib/examples && webpack serve",
-    "serve": "npm-run-all build webpack"
+    "serve": "npm-run-all build webpack",
+    "npm-version": "npm version patch",
+    "npm-publish": "npm publish",
+    "release": "npm-run-all dist npm-version npm-publish"
   },
   "devDependencies": {
     "@jlongster/sql.js": "1.6.7",
@@ -40,7 +43,7 @@
   "files": [
     "README.md",
     "dist/**/*",
-    "src/**/*"
+    "lib/**/*"
   ],
   "dependencies": {
     "safari-14-idb-fix": "^3.0.0"
