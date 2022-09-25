@@ -1,6 +1,4 @@
-import { Ops } from "../sqlite-file";
-import { Block, FileAttr } from "../sqlite-types";
-import { LOCK_TYPES } from "../sqlite-util";
+import { Block, FileAttr, LOCK_TYPES, Ops } from "../sqlite-types";
 import { Reader, Writer } from "./shared-channel";
 
 function positionToKey(pos: number, blockSize: number) {

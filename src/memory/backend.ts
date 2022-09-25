@@ -1,6 +1,6 @@
 import { IBackend } from "../backend";
-import { File, Ops } from "../sqlite-file";
-import { Block, FileAttr } from "../sqlite-types";
+import { File } from "../sqlite-file";
+import { Block, FileAttr, Ops } from "../sqlite-types";
 
 class FileOps implements Ops {
   public locked = false;

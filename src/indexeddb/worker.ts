@@ -1,5 +1,5 @@
-import { Block, FileAttr } from "../sqlite-types";
-import { isSafeToWrite, LOCK_TYPES } from "../sqlite-util";
+import { Block, FileAttr, LOCK_TYPES } from "../sqlite-types";
+import { isSafeToWrite } from "../sqlite-util";
 import { Reader, Writer } from "./shared-channel";
 import { Item } from "./types";
 
@@ -22,22 +22,21 @@ function assert(cond: boolean, msg: string) {
 // read/writes with knowledge of how sqlite asks for them, and also
 // implements a locking mechanism that maps to how sqlite locks work.
 class Transaction {
-  trans: IDBTransaction;
-  store: IDBObjectStore;
-  lockType: LOCK_TYPES;
-
   // There is no need for us to cache blocks. Use sqlite's
   // `cache_size` for that and it will automatically do it. However,
   // we do still keep a cache of the first block for the duration of
   // this transaction because of how locking works; this avoids a
   // few extra reads and allows us to detect changes during
   // upgrading (see `upgradeExclusive`)
-  cachedFirstBlock = new ArrayBuffer(0);
+  public cachedFirstBlock = new ArrayBuffer(0);
   cursor?: IDBCursor;
+  public cursorPromise: any;
+  public lockType: LOCK_TYPES;
   prevReads?: number[];
+  public store: IDBObjectStore;
+  public trans: IDBTransaction;
 
-  cursorPromise: any; // TODO
-
+  // TODO
   constructor(
     public db: IDBDatabase,
     initialMode: IDBTransactionMode = "readonly"
@@ -48,50 +47,15 @@ class Transaction {
       initialMode === "readonly" ? LOCK_TYPES.SHARED : LOCK_TYPES.EXCLUSIVE;
   }
 
-  async prefetchFirstBlock(timeout: number) {
-    // TODO: implement timeout
+  public async bulkSet(items: Item[]) {
+    delete this.prevReads;
 
-    // Get the first block and cache it
-    let block = await this.get(0);
-    this.cachedFirstBlock = block;
-    return block;
+    for (let item of items) {
+      this.store.put(item.value, item.key);
+    }
   }
 
-  async waitComplete() {
-    return new Promise<void>((resolve, reject) => {
-      // Eagerly commit it for better perf. Note that **this assumes
-      // the transaction is open** as `commit` will throw an error if
-      // it's already closed (which should never be the case for us)
-      this.commit();
-
-      if (this.lockType === LOCK_TYPES.EXCLUSIVE) {
-        // Wait until all writes are committed
-        this.trans.oncomplete = () => resolve();
-
-        // TODO: Is it OK to add this later, after an error might have
-        // happened? Will it hold the error and fire this when we
-        // attached it? We might want to eagerly create the promise
-        // when creating the transaction and return it here
-        this.trans.onerror = (e) => reject(e);
-      } else {
-        if (isProbablySafari) {
-          // Safari has a bug where sometimes the IDB gets blocked
-          // permanently if you refresh the page with an open
-          // transaction. You have to restart the browser to fix it.
-          // We wait for readonly transactions to finish too, but this
-          // is a perf hit
-          this.trans.oncomplete = () => resolve();
-        } else {
-          // No need to wait on anything in a read-only transaction.
-          // Note that errors during reads area always handled by the
-          // read request.
-          resolve();
-        }
-      }
-    });
-  }
-
-  commit() {
+  public commit() {
     // Safari doesn't support this method yet (this is just an
     // optimization)
     if (this.trans.commit) {
@@ -99,24 +63,7 @@ class Transaction {
     }
   }
 
-  async upgradeExclusive() {
-    this.commit();
-
-    // console.log('updating transaction readwrite');
-    this.trans = this.db.transaction(["data"], "readwrite");
-    this.store = this.trans.objectStore("data");
-    this.lockType = LOCK_TYPES.EXCLUSIVE;
-
-    let cached0 = this.cachedFirstBlock;
-
-    // Do a read
-    let block = await this.prefetchFirstBlock(500);
-    // TODO: when timeouts are implemented, detect timeout and return BUSY
-
-    return isSafeToWrite(block, cached0);
-  }
-
-  downgradeShared() {
+  public downgradeShared() {
     this.commit();
 
     // console.log('downgrading transaction readonly');
@@ -125,7 +72,7 @@ class Transaction {
     this.lockType = LOCK_TYPES.SHARED;
   }
 
-  async get(key: number) {
+  public async get(key: number) {
     return new Promise<ArrayBufferLike>((resolve, reject) => {
       const req = this.store.get(key);
       req.onsuccess = () => {
@@ -135,7 +82,7 @@ class Transaction {
     });
   }
 
-  getReadDirection(): IDBCursorDirection | null {
+  public getReadDirection(): IDBCursorDirection | null {
     // There are a two ways we can read data: a direct `get` request
     // or opening a cursor and iterating through data. We don't know
     // what future reads look like, so we don't know the best strategy
@@ -184,7 +131,16 @@ class Transaction {
     return null;
   }
 
-  read(position: number): Promise<ArrayBufferLike> {
+  public async prefetchFirstBlock(timeout: number) {
+    // TODO: implement timeout
+
+    // Get the first block and cache it
+    let block = await this.get(0);
+    this.cachedFirstBlock = block;
+    return block;
+  }
+
+  public read(position: number): Promise<ArrayBufferLike> {
     let waitCursor = () => {
       return new Promise<ArrayBufferLike>((resolve, reject) => {
         if (this.cursorPromise != null) {
@@ -270,7 +226,7 @@ class Transaction {
     }
   }
 
-  async set(item: Item) {
+  public async set(item: Item) {
     delete this.prevReads;
 
     return new Promise((resolve, reject) => {
@@ -280,12 +236,55 @@ class Transaction {
     });
   }
 
-  async bulkSet(items: Item[]) {
-    delete this.prevReads;
+  public async upgradeExclusive() {
+    this.commit();
 
-    for (let item of items) {
-      this.store.put(item.value, item.key);
-    }
+    // console.log('updating transaction readwrite');
+    this.trans = this.db.transaction(["data"], "readwrite");
+    this.store = this.trans.objectStore("data");
+    this.lockType = LOCK_TYPES.EXCLUSIVE;
+
+    let cached0 = this.cachedFirstBlock;
+
+    // Do a read
+    let block = await this.prefetchFirstBlock(500);
+    // TODO: when timeouts are implemented, detect timeout and return BUSY
+
+    return isSafeToWrite(block, cached0);
+  }
+
+  public async waitComplete() {
+    return new Promise<void>((resolve, reject) => {
+      // Eagerly commit it for better perf. Note that **this assumes
+      // the transaction is open** as `commit` will throw an error if
+      // it's already closed (which should never be the case for us)
+      this.commit();
+
+      if (this.lockType === LOCK_TYPES.EXCLUSIVE) {
+        // Wait until all writes are committed
+        this.trans.oncomplete = () => resolve();
+
+        // TODO: Is it OK to add this later, after an error might have
+        // happened? Will it hold the error and fire this when we
+        // attached it? We might want to eagerly create the promise
+        // when creating the transaction and return it here
+        this.trans.onerror = (e) => reject(e);
+      } else {
+        if (isProbablySafari) {
+          // Safari has a bug where sometimes the IDB gets blocked
+          // permanently if you refresh the page with an open
+          // transaction. You have to restart the browser to fix it.
+          // We wait for readonly transactions to finish too, but this
+          // is a perf hit
+          this.trans.oncomplete = () => resolve();
+        } else {
+          // No need to wait on anything in a read-only transaction.
+          // Note that errors during reads area always handled by the
+          // read request.
+          resolve();
+        }
+      }
+    });
   }
 }
 

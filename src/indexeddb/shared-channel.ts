@@ -1,3 +1,5 @@
+import { IReader, IWriter } from "../sqlite-types";
+
 let FINALIZED = 0xdeadbeef;
 
 let WRITEABLE = 0;
@@ -11,7 +13,7 @@ interface Params {
   name?: string;
 }
 
-export class Stream {
+class Stream {
   atomicView: Int32Array;
   offset: number;
   useAtomics: boolean;
@@ -35,7 +37,7 @@ export class Stream {
   }
 }
 
-export class Reader extends Stream {
+export class Reader extends Stream implements IReader {
   peekOffset?: number;
 
   constructor(public buffer: ArrayBufferLike, params: Params) {
@@ -174,7 +176,7 @@ export class Reader extends Stream {
   }
 }
 
-export class Writer extends Stream {
+export class Writer extends Stream implements IWriter {
   constructor(public buffer: ArrayBufferLike, params: Params) {
     super(buffer, params);
 

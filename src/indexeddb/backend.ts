@@ -1,5 +1,6 @@
 import { IBackend } from "../backend";
-import { File, Ops } from "../sqlite-file";
+import { File } from "../sqlite-file";
+import { Ops } from "../sqlite-types";
 import { FileOps } from "./file-ops";
 import { FileOpsFallback } from "./file-ops-fallback";
 

@@ -1,34 +1,5 @@
-import { Block, FileAttr } from "./sqlite-types";
-import { getPageSize, LOCK_TYPES } from "./sqlite-util";
-
-export interface IReader {
-  string(timeout?: number): string;
-  int32(): number;
-  done(): void;
-  bytes(): ArrayBufferLike;
-}
-
-export interface IWriter {
-  string(str: string): void;
-  finalize(): void;
-  int32(num: number): void;
-  bytes(buffer: ArrayBufferLike): void;
-}
-
-export interface Ops {
-  writer?: IWriter;
-  reader?: IReader;
-  readIfFallback?: () => Promise<FileAttr>;
-  open(): void;
-  readMeta(): FileAttr | undefined;
-  close(): void;
-  delete(): void;
-  readBlocks(positions: number[], blockSize: number): Block[];
-  writeMeta(meta: FileAttr): void;
-  writeBlocks(blocks: Block[], blockSize: number): number;
-  lock(lockType: LOCK_TYPES): boolean;
-  unlock(lockType: LOCK_TYPES): void;
-}
+import { Block, FileAttr, LOCK_TYPES, Ops } from "./sqlite-types";
+import { getPageSize } from "./sqlite-util";
 
 function range(start: number, end: number, step: number) {
   let r = [];

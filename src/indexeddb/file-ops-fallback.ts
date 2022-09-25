@@ -1,7 +1,6 @@
 import idbReady from "safari-14-idb-fix";
-import { Ops } from "../sqlite-file";
-import { Block, FileAttr } from "../sqlite-types";
-import { getPageSize, isSafeToWrite, LOCK_TYPES } from "../sqlite-util";
+import { Block, FileAttr, LOCK_TYPES, Ops } from "../sqlite-types";
+import { getPageSize, isSafeToWrite } from "../sqlite-util";
 import { Item } from "./types";
 
 function positionToKey(pos: number, blockSize: number) {

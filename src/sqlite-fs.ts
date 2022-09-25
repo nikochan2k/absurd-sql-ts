@@ -1,6 +1,6 @@
 import { IBackend } from "./backend";
 import { File } from "./sqlite-file";
-import { LOCK_TYPES } from "./sqlite-util";
+import { LOCK_TYPES } from "./sqlite-types";
 
 interface ErrornoErrorConstructor {
   new (errno: number): any;
@@ -171,14 +171,14 @@ export default class SQLiteFS {
 
         return this.createNode(parent, name, mode, dev);
       },
-      rename: (old_node, new_dir, new_name) => {
+      rename: () => {
         throw new Error("rename not implemented");
       },
       unlink: (parent, name) => {
         let node = this.fs.lookupNode(parent, name);
         node.contents!.delete();
       },
-      readdir: (node) => {
+      readdir: () => {
         // We could list all the available databases here if `node` is
         // the root directory. However Firefox does not implemented
         // such a methods. Other browsers do, but since it's not
@@ -187,10 +187,10 @@ export default class SQLiteFS {
 
         throw new Error("readdir not implemented");
       },
-      symlink: (parent, newname, oldpath) => {
+      symlink: () => {
         throw new Error("symlink not implemented");
       },
-      readlink: (node) => {
+      readlink: () => {
         throw new Error("symlink not implemented");
       },
     };
