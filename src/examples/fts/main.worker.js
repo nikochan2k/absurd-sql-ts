@@ -1,7 +1,7 @@
 import initSqlJs from "@jlongster/sql.js";
-import { SQLiteFS } from "../../../lib";
+import { SQLiteFS } from "../..";
 // import MemoryBackend from '../../memory/backend';
-import IndexedDBBackend from "../../../lib/indexeddb/backend";
+import IndexedDBBackend from "../../indexeddb/backend";
 
 // Various global state for the demo
 

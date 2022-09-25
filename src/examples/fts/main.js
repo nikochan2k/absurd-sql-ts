@@ -1,4 +1,4 @@
-import { initBackend } from "../../../lib/indexeddb/main-thread";
+import { initBackend } from "../../indexeddb/main-thread";
 import { listenForPerfData } from "perf-deets/frontend";
 
 let worker;

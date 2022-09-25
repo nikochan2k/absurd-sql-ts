@@ -1,7 +1,7 @@
 import initSqlJs from "@jlongster/sql.js";
-import { SQLiteFS } from "../../../lib";
-import MemoryBackend from "../../../lib/memory/backend";
-import IndexedDBBackend from "../../../lib/indexeddb/backend";
+import { SQLiteFS } from "../..";
+import MemoryBackend from "../../memory/backend";
+import IndexedDBBackend from "../../indexeddb/backend";
 import * as queries from "./queries";
 import * as rawIDBQueries from "./queries-raw-idb";
 
