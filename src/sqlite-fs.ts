@@ -99,12 +99,12 @@ interface StreamOps {
 interface Node {
   id: number;
   node_ops: NodeOps;
-  stream_ops?: StreamOps;
+  stream_ops: StreamOps | {};
   mode: number;
   rdev: number;
   size: number;
   timestamp: number;
-  contents?: File;
+  contents: File | { [name: string]: Node };
 }
 
 enum ERRNO_CODES {
@@ -129,7 +129,7 @@ export default class SQLiteFS {
     this.node_ops = {
       getattr: (node) => {
         const fileattr = fs.isFile(node.mode)
-          ? node.contents!.getattr!()
+          ? (node.contents as File).getattr!()
           : null;
 
         const size = fileattr
@@ -157,7 +157,7 @@ export default class SQLiteFS {
       },
       setattr: (node, attr) => {
         if (this.fs.isFile(node.mode)) {
-          node.contents!.setattr(attr);
+          (node.contents as File).setattr(attr);
         } else {
           if (attr.mode != null) {
             node.mode = attr.mode;
@@ -167,7 +167,7 @@ export default class SQLiteFS {
           }
         }
       },
-      lookup: (parent, name) => {
+      lookup: () => {
         throw new this.fs.ErrnoError(ERRNO_CODES.ENOENT);
       },
       mknod: (parent, name, mode, dev) => {
@@ -182,7 +182,7 @@ export default class SQLiteFS {
       },
       unlink: (parent, name) => {
         const node = this.fs.lookupNode(parent, name);
-        node.contents!.delete();
+        (node.contents as File).delete();
       },
       readdir: () => {
         // We could list all the available databases here if `node` is
@@ -204,24 +204,34 @@ export default class SQLiteFS {
     this.stream_ops = {
       open: (stream) => {
         if (this.fs.isFile(stream.node.mode)) {
-          stream.node.contents!.open();
+          (stream.node.contents as File).open();
         }
       },
 
       close: (stream) => {
         if (this.fs.isFile(stream.node.mode)) {
-          stream.node.contents!.close();
+          (stream.node.contents as File).close();
         }
       },
 
       read: (stream, buffer, offset, length, position) => {
         // console.log('read', offset, length, position)
-        return stream.node.contents!.read(buffer, offset, length, position);
+        return (stream.node.contents as File).read(
+          buffer,
+          offset,
+          length,
+          position
+        );
       },
 
       write: (stream, buffer, offset, length, position) => {
         // console.log('write', offset, length, position);
-        return stream.node.contents!.write(buffer, offset, length, position);
+        return (stream.node.contents as File).write(
+          buffer,
+          offset,
+          length,
+          position
+        );
       },
 
       llseek: (stream, offset, whence) => {
@@ -231,7 +241,7 @@ export default class SQLiteFS {
           position += stream.position;
         } else if (whence === 2) {
           if (fs.isFile(stream.node.mode)) {
-            position += stream.node.contents!.getattr().size!;
+            position += (stream.node.contents as File).getattr().size!;
           }
         }
         if (position < 0) {
@@ -240,7 +250,7 @@ export default class SQLiteFS {
         return position;
       },
       allocate: (stream, offset, length) => {
-        stream.node.contents!.setattr({ size: offset + length });
+        (stream.node.contents as File).setattr({ size: offset + length });
       },
       mmap: () => {
         throw new Error("mmap not implemented");
@@ -249,7 +259,7 @@ export default class SQLiteFS {
         throw new Error("msync not implemented");
       },
       fsync: (stream) => {
-        stream.node.contents!.fsync();
+        (stream.node.contents as File).fsync();
       },
     };
   }
@@ -260,12 +270,12 @@ export default class SQLiteFS {
 
   lock(path: string, lockType: LOCK_TYPES) {
     const { node } = this.fs.lookupPath(path);
-    return node.contents!.lock(lockType);
+    return (node.contents as File).lock(lockType);
   }
 
   unlock(path: string, lockType: LOCK_TYPES) {
     const { node } = this.fs.lookupPath(path);
-    return node.contents!.unlock(lockType);
+    return (node.contents as File).unlock(lockType);
   }
 
   createNode(parent: Node | null, name: string, mode: number, dev: number) {
@@ -282,8 +292,8 @@ export default class SQLiteFS {
         unlink: this.node_ops.unlink,
         setattr: this.node_ops.setattr,
       };
-      delete node.stream_ops;
-      delete node.contents;
+      node.stream_ops = {};
+      node.contents = {};
     } else if (this.fs.isFile(node.mode)) {
       node.node_ops = this.node_ops;
       node.stream_ops = this.stream_ops;
@@ -294,7 +304,7 @@ export default class SQLiteFS {
 
     // add the new node to the parent
     if (parent) {
-      (parent.contents as any)[name] = node;
+      (parent.contents as { [name: string]: Node })[name] = node;
       parent.timestamp = node.timestamp;
     }
 
