@@ -4,14 +4,14 @@
     "allowSyntheticDefaultImports": true,
     "esModuleInterop": true,
     "isolatedModules": true,
-    "module": "commonjs",
-    "noEmit": true,
+    "module": "umd",
+    "moduleResolution": "node",
     "strict": true,
-    "target": "esnext",
-    "rootDir": "src" /* Specify the root folder within your source files. */,
-    "outDir": "lib" /* Specify an output folder for all emitted files. */,
-    "forceConsistentCasingInFileNames": true /* Ensure that casing is correct in imports. */,
-    "skipLibCheck": true /* Skip type checking all .d.ts files. */
+    "target": "ES2017",
+    "rootDir": "src",
+    "outDir": "lib",
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true
   },
   "include": ["src"]
 }
