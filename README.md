@@ -1,3 +1,4 @@
+# Typescript version of absurd-sql.
 
 This is an absurd project.
 
@@ -26,10 +27,10 @@ Right now you need to use my fork of `sql.js`, but I'm going to open a PR and ho
 absurd-sql **must** run in a worker. This is fine because you really shouldn't be blocking the main thread anyway. So on the main thread, do this:
 
 ```js
-import { initBackend } from 'absurd-sql/dist/indexeddb-main-thread';
+import { initBackend } from "absurd-sql/dist/indexeddb-main-thread";
 
 function init() {
-  let worker = new Worker(new URL('./index.worker.js', import.meta.url));
+  let worker = new Worker(new URL("./index.worker.js", import.meta.url));
   // This is only required because Safari doesn't support nested
   // workers. This installs a handler that will proxy creating web
   // workers through the main thread
@@ -42,21 +43,21 @@ init();
 Then in `index.worker.js` do this:
 
 ```js
-import initSqlJs from '@jlongster/sql.js';
-import { SQLiteFS } from 'absurd-sql';
-import IndexedDBBackend from 'absurd-sql/dist/indexeddb-backend';
+import initSqlJs from "@jlongster/sql.js";
+import { SQLiteFS } from "absurd-sql";
+import IndexedDBBackend from "absurd-sql/dist/indexeddb-backend";
 
 async function run() {
-  let SQL = await initSqlJs({ locateFile: file => file });
+  let SQL = await initSqlJs({ locateFile: (file) => file });
   let sqlFS = new SQLiteFS(SQL.FS, new IndexedDBBackend());
   SQL.register_for_idb(sqlFS);
 
-  SQL.FS.mkdir('/sql');
-  SQL.FS.mount(sqlFS, {}, '/sql');
+  SQL.FS.mkdir("/sql");
+  SQL.FS.mount(sqlFS, {}, "/sql");
 
-  const path = '/sql/db.sqlite';
-  if (typeof SharedArrayBuffer === 'undefined') {
-    let stream = SQL.FS.open(path, 'a+');
+  const path = "/sql/db.sqlite";
+  if (typeof SharedArrayBuffer === "undefined") {
+    let stream = SQL.FS.open(path, "a+");
     await stream.node.contents.readIfFallback();
     SQL.FS.close(stream);
   }
@@ -67,7 +68,7 @@ async function run() {
     PRAGMA journal_mode=MEMORY;
   `);
 
-   // Your code
+  // Your code
 }
 ```
 
@@ -75,8 +76,8 @@ async function run() {
 
 Because this uses `SharedArrayBuffer` and the `Atomics` API, there are some requirement for code to run.
 
-* It must be run in a worker thread (you shouldn't block the main thread with queries anyway)
-* Your server must respond with the following headers:
+- It must be run in a worker thread (you shouldn't block the main thread with queries anyway)
+- Your server must respond with the following headers:
 
 ```
 Cross-Origin-Opener-Policy: same-origin
@@ -113,7 +114,7 @@ Read [this blog post](https://jlongster.com/future-sql-web) for more details.
 
 There are several things that could be done:
 
-* Add a bunch more tests
-* Implement a `webkitFileSystem` backend
-  * I already started it [here](https://gist.github.com/jlongster/ec00ddbb47b4b29897ab5939b8e32fbe), but initial results showed that it was way slower?
-* Bug fixes
+- Add a bunch more tests
+- Implement a `webkitFileSystem` backend
+  - I already started it [here](https://gist.github.com/jlongster/ec00ddbb47b4b29897ab5939b8e32fbe), but initial results showed that it was way slower?
+- Bug fixes
