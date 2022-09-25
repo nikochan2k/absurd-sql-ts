@@ -8,7 +8,7 @@ import { FileOpsFallback } from "./file-ops-fallback";
 export default class IndexedDBBackend implements IBackend {
   private _files = new Set<File>();
 
-  constructor(public onFallbackFailure: any) {}
+  constructor(private onFallbackFailure: () => void) {}
 
   public createFile(filename: string) {
     let ops: Ops;

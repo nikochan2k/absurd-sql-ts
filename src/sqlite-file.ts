@@ -110,16 +110,16 @@ export function writeChunks(
 }
 
 export class File {
-  public buffer = new Map<number, Block>(); // TODO
+  private buffer = new Map<number, Block>();
   private _metaDirty = false;
-  public writeLock = false;
+  private writeLock = false;
   private _recordingLock = false;
-  public openHandles = 0;
+  private openHandles = 0;
 
   constructor(
     public filename: string,
     public ops: Ops,
-    public meta?: FileAttr
+    private meta?: FileAttr
   ) {}
 
   bufferChunks(chunks: Block[]) {

@@ -3,12 +3,10 @@ import { File } from "../sqlite-file";
 import { Block, DEFAULT_BLOCK_SIZE, FileAttr, Ops } from "../sqlite-types";
 
 class FileOps implements Ops {
-  public locked = false;
-
   constructor(
     public filename: string,
-    public meta: FileAttr,
-    public data: ArrayBufferLike = new ArrayBuffer(0)
+    private meta: FileAttr,
+    private data: ArrayBufferLike = new ArrayBuffer(0)
   ) {}
 
   lock() {

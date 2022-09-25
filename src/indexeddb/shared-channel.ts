@@ -14,14 +14,14 @@ interface Params {
 }
 
 class Stream {
-  atomicView: Int32Array;
-  offset: number;
-  useAtomics: boolean;
-  stream: boolean;
-  debug: boolean;
-  name: string;
+  protected atomicView: Int32Array;
+  protected offset: number;
+  protected useAtomics: boolean;
+  protected stream: boolean;
+  protected debug: boolean;
+  protected name: string;
 
-  constructor(public buffer: ArrayBufferLike, params: Params) {
+  constructor(protected buffer: ArrayBufferLike, params: Params) {
     this.atomicView = new Int32Array(buffer);
     this.offset = params.initialOffset ?? 4;
     this.useAtomics = params.useAtomics ?? true;
@@ -38,9 +38,9 @@ class Stream {
 }
 
 export class Reader extends Stream implements IReader {
-  peekOffset?: number;
+  private peekOffset?: number;
 
-  constructor(public buffer: ArrayBufferLike, params: Params) {
+  constructor(buffer: ArrayBufferLike, params: Params) {
     super(buffer, params);
   }
 
@@ -134,7 +134,7 @@ export class Reader extends Stream implements IReader {
     return str;
   }
 
-  _int32() {
+  private _int32() {
     const byteLength = 4;
 
     const dataView = new DataView(this.buffer, this.offset);
@@ -177,7 +177,7 @@ export class Reader extends Stream implements IReader {
 }
 
 export class Writer extends Stream implements IWriter {
-  constructor(public buffer: ArrayBufferLike, params: Params) {
+  constructor(buffer: ArrayBufferLike, params: Params) {
     super(buffer, params);
 
     if (this.useAtomics) {
@@ -244,7 +244,7 @@ export class Writer extends Stream implements IWriter {
     this.waitRead("string");
   }
 
-  _int32(num: number) {
+  private _int32(num: number) {
     const byteLength = 4;
 
     const dataView = new DataView(this.buffer, this.offset);

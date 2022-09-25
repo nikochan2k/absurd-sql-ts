@@ -52,10 +52,10 @@ function startWorker(reader: any, writer: any) {
 export class FileOps implements Ops {
   reader?: Reader;
   writer?: Writer;
-  storeName: string;
+  private databaseName: string;
 
   constructor(public filename: string) {
-    this.storeName = this.filename.replace(/\//g, "-");
+    this.databaseName = this.filename.replace(/\//g, "-");
   }
 
   invokeWorker(
@@ -177,14 +177,14 @@ export class FileOps implements Ops {
 
   lock(lockType: LOCK_TYPES) {
     return this.invokeWorker("lockFile", {
-      name: this.storeName,
+      name: this.databaseName,
       lockType,
     }) as boolean;
   }
 
   unlock(lockType: LOCK_TYPES) {
     return this.invokeWorker("unlockFile", {
-      name: this.storeName,
+      name: this.databaseName,
       lockType,
     });
   }
@@ -200,7 +200,7 @@ export class FileOps implements Ops {
     // workers would leak in the case of closing a file but not
     // deleting it. We could potentially restart the worker here if
     // needed, but for now just assume that the deletion is a success
-    const req = globalThis.indexedDB.deleteDatabase(this.storeName);
+    const req = globalThis.indexedDB.deleteDatabase(this.databaseName);
     req.onerror = () => {
       console.warn(`Deleting ${this.filename} database failed`);
     };
@@ -226,24 +226,24 @@ export class FileOps implements Ops {
   }
 
   close() {
-    this.invokeWorker("closeFile", { name: this.storeName });
+    this.invokeWorker("closeFile", { name: this.databaseName });
     delete this.reader;
     delete this.writer;
   }
 
   readMeta() {
     return this.invokeWorker("readMeta", {
-      name: this.storeName,
+      name: this.databaseName,
     }) as FileAttr | undefined;
   }
 
   writeMeta(meta: FileAttr) {
-    return this.invokeWorker("writeMeta", { name: this.storeName, meta });
+    return this.invokeWorker("writeMeta", { name: this.databaseName, meta });
   }
 
   readBlocks(positions: number[], blockSize: number) {
     return this.invokeWorker("readBlocks", {
-      name: this.storeName,
+      name: this.databaseName,
       positions,
       blockSize,
     }) as Block[];
@@ -251,7 +251,7 @@ export class FileOps implements Ops {
 
   writeBlocks(writes: any[], blockSize: number) {
     return this.invokeWorker("writeBlocks", {
-      name: this.storeName,
+      name: this.databaseName,
       writes,
       blockSize,
     }) as number;

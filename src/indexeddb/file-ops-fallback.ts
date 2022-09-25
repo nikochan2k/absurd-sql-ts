@@ -43,9 +43,9 @@ async function openDb(name: string) {
 // change
 class Persistance {
   private _openDb?: IDBDatabase;
-  public hasAlertedFailure = false;
+  private hasAlertedFailure = false;
 
-  constructor(public dbName: string, public onFallbackFailure: any) {}
+  constructor(public dbName: string, public onFallbackFailure: () => void) {}
 
   async getDb() {
     if (this._openDb) {
@@ -108,7 +108,7 @@ class Persistance {
 
     await new Promise<void>((resolve, reject) => {
       const req = store.get(0);
-      req.onsuccess = (e) => {
+      req.onsuccess = () => {
         if (hasLocked) {
           if (!isSafeToWrite(req.result, cachedFirstBlock)) {
             if (this.onFallbackFailure && !this.hasAlertedFailure) {

@@ -33,17 +33,16 @@ class Transaction {
   // this transaction because of how locking works; this avoids a
   // few extra reads and allows us to detect changes during
   // upgrading (see `upgradeExclusive`)
-  public cachedFirstBlock?: ArrayBuffer;
-  cursor?: IDBCursor;
-  public cursorPromise: any;
+  private cachedFirstBlock?: ArrayBuffer;
+  private cursor?: IDBCursor;
+  private cursorPromise: any;
   public lockType: LOCK_TYPES;
-  prevReads?: number[];
-  public store: IDBObjectStore;
-  public trans: IDBTransaction;
+  private prevReads?: number[];
+  private store: IDBObjectStore;
+  private trans: IDBTransaction;
 
-  // TODO
   constructor(
-    public db: IDBDatabase,
+    private db: IDBDatabase,
     initialMode: IDBTransactionMode = "readonly"
   ) {
     this.trans = this.db.transaction(["data"], initialMode);

@@ -122,10 +122,10 @@ enum ERRNO_CODES {
 // filesystem, which creates a special file that handles read/writes
 // in the way that we want.
 export default class SQLiteFS {
-  node_ops: NodeOps;
-  stream_ops: StreamOps;
+  private node_ops: NodeOps;
+  private stream_ops: StreamOps;
 
-  constructor(public fs: FS, public backend: IBackend) {
+  constructor(private fs: FS, private backend: IBackend) {
     this.node_ops = {
       getattr: (node) => {
         const fileattr = fs.isFile(node.mode)
