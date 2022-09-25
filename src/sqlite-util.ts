@@ -10,7 +10,7 @@ export function getPageSize(bufferView: Uint8Array) {
 
 export function isSafeToWrite(
   localData: ArrayBufferLike,
-  diskData: ArrayBufferLike
+  diskData?: ArrayBufferLike
 ) {
   if (localData != null && diskData != null) {
     const localView = new Uint8Array(localData);

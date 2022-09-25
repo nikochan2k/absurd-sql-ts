@@ -125,7 +125,7 @@ export class FileOps implements Ops {
         const size = reader.int32();
         const blockSize = reader.int32();
         reader.done();
-        return size === -1 ? {} : { size, blockSize };
+        return size === -1 ? undefined : { size, blockSize };
       }
 
       case "writeMeta": {

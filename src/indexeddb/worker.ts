@@ -33,7 +33,7 @@ class Transaction {
   // this transaction because of how locking works; this avoids a
   // few extra reads and allows us to detect changes during
   // upgrading (see `upgradeExclusive`)
-  public cachedFirstBlock = new ArrayBuffer(0);
+  public cachedFirstBlock?: ArrayBuffer;
   cursor?: IDBCursor;
   public cursorPromise: any;
   public lockType: LOCK_TYPES;
