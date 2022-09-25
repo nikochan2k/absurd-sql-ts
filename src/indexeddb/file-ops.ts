@@ -69,21 +69,21 @@ export class FileOps implements Ops {
       );
     }
 
-    let reader = this.reader;
-    let writer = this.writer;
+    const reader = this.reader;
+    const writer = this.writer;
 
     switch (method) {
       case "readBlocks": {
-        let { name, positions, blockSize } = args;
+        const { name, positions, blockSize } = args;
 
-        let res = [];
-        for (let pos of positions!) {
+        const res: Block[] = [];
+        for (const pos of positions!) {
           writer.string("readBlock");
           writer.string(name);
           writer.int32(positionToKey(pos, blockSize!));
           writer.finalize();
 
-          let data = reader.bytes();
+          const data = reader.bytes();
           reader.done();
           res.push({
             pos,
@@ -116,21 +116,21 @@ export class FileOps implements Ops {
         writer.string(args.name);
         writer.finalize();
 
-        let size = reader.int32();
-        let blockSize = reader.int32();
+        const size = reader.int32();
+        const blockSize = reader.int32();
         reader.done();
         return size === -1 ? {} : { size, blockSize };
       }
 
       case "writeMeta": {
-        let { name, meta } = args;
+        const { name, meta } = args;
         writer.string("writeMeta");
         writer.string(name);
         writer.int32(meta!.size!);
         // writer.int32(meta.blockSize);
         writer.finalize();
 
-        let res = reader.int32();
+        const res = reader.int32();
         reader.done();
         return res;
       }
@@ -140,7 +140,7 @@ export class FileOps implements Ops {
         writer.string(args.name);
         writer.finalize();
 
-        let res = reader.int32();
+        const res = reader.int32();
         reader.done();
         return res;
       }
@@ -151,7 +151,7 @@ export class FileOps implements Ops {
         writer.int32(args.lockType!);
         writer.finalize();
 
-        let res = reader.int32();
+        const res = reader.int32();
         reader.done();
         return res === 0;
       }
@@ -162,7 +162,7 @@ export class FileOps implements Ops {
         writer.int32(args.lockType!);
         writer.finalize();
 
-        let res = reader.int32();
+        const res = reader.int32();
         reader.done();
         return res === 0;
       }
@@ -194,7 +194,7 @@ export class FileOps implements Ops {
     // workers would leak in the case of closing a file but not
     // deleting it. We could potentially restart the worker here if
     // needed, but for now just assume that the deletion is a success
-    let req = globalThis.indexedDB.deleteDatabase(this.storeName);
+    const req = globalThis.indexedDB.deleteDatabase(this.storeName);
     req.onerror = () => {
       console.warn(`Deleting ${this.filename} database failed`);
     };
@@ -202,13 +202,13 @@ export class FileOps implements Ops {
   }
 
   open() {
-    let argBuffer = new SharedArrayBuffer(4096 * 9);
+    const argBuffer = new SharedArrayBuffer(4096 * 9);
     this.writer = new Writer(argBuffer, {
       name: "args (backend)",
       debug: false,
     });
 
-    let resultBuffer = new SharedArrayBuffer(4096 * 9);
+    const resultBuffer = new SharedArrayBuffer(4096 * 9);
     this.reader = new Reader(resultBuffer, {
       name: "results",
       debug: false,

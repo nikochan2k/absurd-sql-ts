@@ -3,13 +3,13 @@ import { isSafeToWrite } from "../sqlite-util";
 import { Reader, Writer } from "./shared-channel";
 import { Item } from "./types";
 
-let isProbablySafari = /^((?!chrome|android).)*safari/i.test(
+const isProbablySafari = /^((?!chrome|android).)*safari/i.test(
   navigator.userAgent
 );
 
 // Don't need a map anymore, we use a worker per file
-let openDbs = new Map<string, IDBDatabase>();
-let transactions = new Map<string, Transaction>();
+const openDbs = new Map<string, IDBDatabase>();
+const transactions = new Map<string, Transaction>();
 
 function assert(cond: boolean, msg: string) {
   if (!cond) {
@@ -50,7 +50,7 @@ class Transaction {
   public async bulkSet(items: Item[]) {
     delete this.prevReads;
 
-    for (let item of items) {
+    for (const item of items) {
       this.store.put(item.value, item.key);
     }
   }
@@ -107,7 +107,7 @@ class Transaction {
     // configurable so the user can change them per-browser if needed,
     // as well as fine-tuning them for their usage of sqlite.
 
-    let prevReads = this.prevReads;
+    const prevReads = this.prevReads;
     if (prevReads) {
       // Has there been 3 forward sequential reads within 10 blocks?
       if (
@@ -135,13 +135,13 @@ class Transaction {
     // TODO: implement timeout
 
     // Get the first block and cache it
-    let block = await this.get(0);
+    const block = await this.get(0);
     this.cachedFirstBlock = block;
     return block;
   }
 
   public read(position: number): Promise<ArrayBufferLike> {
-    let waitCursor = () => {
+    const waitCursor = () => {
       return new Promise<ArrayBufferLike>((resolve, reject) => {
         if (this.cursorPromise != null) {
           throw new Error(
@@ -153,7 +153,7 @@ class Transaction {
     };
 
     if (this.cursor) {
-      let cursor = this.cursor;
+      const cursor = this.cursor;
 
       const key = cursor.key as number;
       if (
@@ -179,22 +179,21 @@ class Transaction {
       // We don't already have a cursor. We need to a fresh read;
       // should we open a cursor or call `get`?
 
-      let dir = this.getReadDirection();
+      const dir = this.getReadDirection();
       if (dir) {
         // Open a cursor
         delete this.prevReads;
 
-        let keyRange;
+        let keyRange: IDBKeyRange;
         if (dir === "prev") {
           keyRange = IDBKeyRange.upperBound(position);
         } else {
           keyRange = IDBKeyRange.lowerBound(position);
         }
 
-        let req = this.store.openCursor(keyRange, dir);
-
+        const req = this.store.openCursor(keyRange, dir);
         req.onsuccess = (e) => {
-          let cursor = (e.target as any).result as IDBCursorWithValue;
+          const cursor = (e.target as any).result as IDBCursorWithValue;
           this.cursor = cursor;
 
           if (this.cursorPromise == null) {
@@ -230,7 +229,7 @@ class Transaction {
     delete this.prevReads;
 
     return new Promise((resolve, reject) => {
-      let req = this.store.put(item.value, item.key);
+      const req = this.store.put(item.value, item.key);
       req.onsuccess = () => resolve(req.result);
       req.onerror = (e) => reject(e);
     });
@@ -244,10 +243,10 @@ class Transaction {
     this.store = this.trans.objectStore("data");
     this.lockType = LOCK_TYPES.EXCLUSIVE;
 
-    let cached0 = this.cachedFirstBlock;
+    const cached0 = this.cachedFirstBlock;
 
     // Do a read
-    let block = await this.prefetchFirstBlock(500);
+    const block = await this.prefetchFirstBlock(500);
     // TODO: when timeouts are implemented, detect timeout and return BUSY
 
     return isSafeToWrite(block, cached0);
@@ -326,7 +325,7 @@ async function loadDb(name: string) {
 }
 
 function closeDb(name: string) {
-  let openDb = openDbs.get(name);
+  const openDb = openDbs.get(name);
   if (openDb) {
     openDb.close();
     openDbs.delete(name);
@@ -340,7 +339,7 @@ function getTransaction(name: string) {
 async function withTransaction(
   name: string,
   mode: IDBTransactionMode,
-  func: (trans: Transaction) => void
+  func: (trans: Transaction) => Promise<void>
 ) {
   let trans = transactions.get(name);
   if (trans) {
@@ -354,7 +353,7 @@ async function withTransaction(
     if (mode === "readwrite" && trans.lockType === LOCK_TYPES.SHARED) {
       throw new Error("Attempted write but only has SHARED lock");
     }
-    return func(trans);
+    return await func(trans);
   }
 
   // Outside the scope of a lock, create a temporary transaction
@@ -423,7 +422,7 @@ async function withTransaction(
 async function handleLock(writer: Writer, name: string, lockType: LOCK_TYPES) {
   // console.log('locking', name, lockType, performance.now());
 
-  let trans = transactions.get(name);
+  const trans = transactions.get(name);
   if (trans) {
     if (lockType > trans.lockType) {
       // Upgrade SHARED to EXCLUSIVE
@@ -436,7 +435,7 @@ async function handleLock(writer: Writer, name: string, lockType: LOCK_TYPES) {
         `Upgrading lock type to ${lockType} is invalid`
       );
 
-      let success = await trans.upgradeExclusive();
+      const success = await trans.upgradeExclusive();
       writer.int32(success ? 0 : -1);
       writer.finalize();
     } else {
@@ -456,7 +455,7 @@ async function handleLock(writer: Writer, name: string, lockType: LOCK_TYPES) {
       `New locks must start as SHARED instead of ${lockType}`
     );
 
-    let trans = new Transaction(await loadDb(name));
+    const trans = new Transaction(await loadDb(name));
     if ((await trans.prefetchFirstBlock(500)) == null) {
       // BUSY
     }
@@ -473,7 +472,7 @@ async function handleUnlock(
   name: string,
   lockType: LOCK_TYPES
 ) {
-  let trans = getTransaction(name);
+  const trans = getTransaction(name);
 
   if (lockType === LOCK_TYPES.SHARED) {
     if (trans == null) {
@@ -500,7 +499,7 @@ async function handleUnlock(
 
 async function handleRead(writer: Writer, name: string, position: number) {
   return withTransaction(name, "readonly", async (trans) => {
-    let data = await trans.read(position);
+    const data = await trans.read(position);
 
     if (data == null) {
       writer.bytes(new ArrayBuffer(0));
@@ -524,7 +523,7 @@ async function handleReadMeta(writer: Writer, name: string) {
   return withTransaction(name, "readonly", async (trans) => {
     try {
       console.log("Reading meta...");
-      let res = (await trans.get(-1)) as FileAttr;
+      const res = (await trans.get(-1)) as FileAttr;
       console.log(`Got meta for ${name}:`, res);
 
       if (res == null) {
@@ -536,13 +535,13 @@ async function handleReadMeta(writer: Writer, name: string) {
         // let meta = res;
 
         // Also read the first block to get the page size
-        let block = await trans.get(0);
+        const block = await trans.get(0);
 
         // There should always be a first block if we have meta, but
         // in case of a corrupted db, default to this size
         let blockSize = 4096;
         if (block) {
-          let arr = new Uint16Array(block);
+          const arr = new Uint16Array(block);
           blockSize = arr[8] * 256;
         }
 
@@ -580,7 +579,7 @@ async function handleWriteMeta(writer: Writer, name: string, meta: FileAttr) {
 // various reasons. We can convert this to a `while(1)` loop with
 // and use `await` though
 async function listen(reader: Reader, writer: Writer) {
-  let method = reader.string();
+  const method = reader.string();
 
   switch (method) {
     case "profile-start": {
@@ -606,11 +605,11 @@ async function listen(reader: Reader, writer: Writer) {
     }
 
     case "writeBlocks": {
-      let name = reader.string();
-      let writes = [];
+      const name = reader.string();
+      const writes: Block[] = [];
       while (!reader.done()) {
-        let pos = reader.int32();
-        let data = reader.bytes();
+        const pos = reader.int32();
+        const data = reader.bytes();
         writes.push({ pos, data });
       }
 
@@ -620,8 +619,8 @@ async function listen(reader: Reader, writer: Writer) {
     }
 
     case "readBlock": {
-      let name = reader.string();
-      let pos = reader.int32();
+      const name = reader.string();
+      const pos = reader.int32();
       reader.done();
 
       await handleRead(writer, name, pos);
@@ -630,7 +629,7 @@ async function listen(reader: Reader, writer: Writer) {
     }
 
     case "readMeta": {
-      let name = reader.string();
+      const name = reader.string();
       reader.done();
       await handleReadMeta(writer, name);
       listen(reader, writer);
@@ -638,8 +637,8 @@ async function listen(reader: Reader, writer: Writer) {
     }
 
     case "writeMeta": {
-      let name = reader.string();
-      let size = reader.int32();
+      const name = reader.string();
+      const size = reader.int32();
       // let blockSize = reader.int32();
       reader.done();
       await handleWriteMeta(writer, name, { size });
@@ -648,7 +647,7 @@ async function listen(reader: Reader, writer: Writer) {
     }
 
     case "closeFile": {
-      let name = reader.string();
+      const name = reader.string();
       reader.done();
 
       // This worker is done, shut down
@@ -660,8 +659,8 @@ async function listen(reader: Reader, writer: Writer) {
     }
 
     case "lockFile": {
-      let name = reader.string();
-      let lockType = reader.int32();
+      const name = reader.string();
+      const lockType = reader.int32();
       reader.done();
 
       await handleLock(writer, name, lockType);
@@ -670,8 +669,8 @@ async function listen(reader: Reader, writer: Writer) {
     }
 
     case "unlockFile": {
-      let name = reader.string();
-      let lockType = reader.int32();
+      const name = reader.string();
+      const lockType = reader.int32();
       reader.done();
 
       await handleUnlock(writer, name, lockType);
@@ -688,9 +687,12 @@ self.onmessage = (msg) => {
   switch (msg.data.type) {
     case "init": {
       // postMessage({ type: '__absurd:worker-ready' });
-      let [argBuffer, resultBuffer] = msg.data.buffers;
-      let reader = new Reader(argBuffer, { name: "args", debug: false });
-      let writer = new Writer(resultBuffer, { name: "results", debug: false });
+      const [argBuffer, resultBuffer] = msg.data.buffers;
+      const reader = new Reader(argBuffer, { name: "args", debug: false });
+      const writer = new Writer(resultBuffer, {
+        name: "results",
+        debug: false,
+      });
       listen(reader, writer);
       break;
     }

@@ -46,10 +46,10 @@ class FileOps implements Ops {
 
   readBlocks(positions: number[], blockSize: number) {
     // console.log('_reading', this.filename, positions);
-    let data = this.data;
+    const data = this.data;
 
     return positions.map((pos) => {
-      let buffer = new ArrayBuffer(blockSize);
+      const buffer = new ArrayBuffer(blockSize);
 
       if (pos < data.byteLength) {
         new Uint8Array(buffer).set(
@@ -67,25 +67,27 @@ class FileOps implements Ops {
 
     // console.log("writes", writes.length);
     let i = 0;
-    let written = 0;
-    for (let write of writes) {
+    let writtenBytes = 0;
+    for (const write of writes) {
       if (i % 1000 === 0) {
         console.log("write");
       }
       i++;
-      let fullLength = write.pos + write.data.byteLength;
+      const byteLength = write.data.byteLength;
+      const fullLength = write.pos + byteLength;
 
       if (fullLength > data.byteLength) {
         // Resize file
-        let buffer = new ArrayBuffer(fullLength);
+        const buffer = new ArrayBuffer(fullLength);
         new Uint8Array(buffer).set(new Uint8Array(data));
         this.data = data = buffer;
       }
 
       new Uint8Array(data).set(new Uint8Array(write.data), write.pos);
+      writtenBytes += byteLength;
     }
 
-    return writes.length; // TODO
+    return writtenBytes; // TODO
   }
 }
 
@@ -102,7 +104,7 @@ export default class MemoryBackend implements IBackend {
 
   createFile(filename: string) {
     if (this.files[filename] == null) {
-      let data = this.fileData[filename];
+      const data = this.fileData[filename];
 
       this.files[filename] = new File(
         filename,

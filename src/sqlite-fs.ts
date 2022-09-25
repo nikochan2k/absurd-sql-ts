@@ -128,11 +128,13 @@ export default class SQLiteFS {
   constructor(public fs: FS, public backend: IBackend) {
     this.node_ops = {
       getattr: (node) => {
-        let fileattr = fs.isFile(node.mode) ? node.contents!.getattr!() : null;
+        const fileattr = fs.isFile(node.mode)
+          ? node.contents!.getattr!()
+          : null;
 
         const size = fileattr ? fileattr.size! : fs.isDir(node.mode) ? 4096 : 0;
         const blksize = fileattr ? fileattr.blockSize! : 4096;
-        let attr: Attr = {
+        const attr: Attr = {
           dev: 1,
           ino: node.id,
           mode: fileattr ? fileattr.mode! : node.mode,
@@ -175,7 +177,7 @@ export default class SQLiteFS {
         throw new Error("rename not implemented");
       },
       unlink: (parent, name) => {
-        let node = this.fs.lookupNode(parent, name);
+        const node = this.fs.lookupNode(parent, name);
         node.contents!.delete();
       },
       readdir: () => {
@@ -253,12 +255,12 @@ export default class SQLiteFS {
   }
 
   lock(path: string, lockType: LOCK_TYPES) {
-    let { node } = this.fs.lookupPath(path);
+    const { node } = this.fs.lookupPath(path);
     return node.contents!.lock(lockType);
   }
 
   unlock(path: string, lockType: LOCK_TYPES) {
-    let { node } = this.fs.lookupPath(path);
+    const { node } = this.fs.lookupPath(path);
     return node.contents!.unlock(lockType);
   }
 

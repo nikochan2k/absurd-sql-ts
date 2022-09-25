@@ -2,7 +2,7 @@ import { Block, FileAttr, LOCK_TYPES, Ops } from "./sqlite-types";
 import { getPageSize } from "./sqlite-util";
 
 function range(start: number, end: number, step: number) {
-  let r = [];
+  const r: number[] = [];
   for (let i = start; i <= end; i += step) {
     r.push(i);
   }
@@ -14,20 +14,18 @@ export function getBoundaryIndexes(
   start: number,
   end: number
 ) {
-  let startC = start - (start % blockSize);
-  let endC = end - 1 - ((end - 1) % blockSize);
+  const startC = start - (start % blockSize);
+  const endC = end - 1 - ((end - 1) % blockSize);
 
   return range(startC, endC, blockSize);
 }
 
 export function readChunks(chunks: Block[], start: number, end: number) {
-  let buffer = new ArrayBuffer(end - start);
-  let bufferView = new Uint8Array(buffer);
+  const buffer = new ArrayBuffer(end - start);
+  const bufferView = new Uint8Array(buffer);
 
   let cursor = 0;
-  for (let i = 0; i < chunks.length; i++) {
-    let chunk = chunks[i];
-
+  for (const chunk of chunks) {
     // TODO: jest has a bug where we can't do `instanceof ArrayBuffer`
     if (chunk.data.constructor.name !== "ArrayBuffer") {
       throw new Error("Chunk data is not an ArrayBuffer");
@@ -65,7 +63,7 @@ export function writeChunks(
   start: number,
   end: number
 ): Block[] {
-  let indexes = getBoundaryIndexes(blockSize, start, end);
+  const indexes = getBoundaryIndexes(blockSize, start, end);
   let cursor = 0;
 
   const result: Block[] = [];
@@ -79,21 +77,21 @@ export function writeChunks(
       cend = end - index;
     }
 
-    let len = cend - cstart;
-    let chunkBuffer = new ArrayBuffer(blockSize);
-
     if (start > index + blockSize || end <= index) {
       continue;
     }
 
-    let off = bufferView.byteOffset + cursor;
+    const off = bufferView.byteOffset + cursor;
 
-    let available = bufferView.buffer.byteLength - off;
+    const available = bufferView.buffer.byteLength - off;
     if (available <= 0) {
       continue;
     }
 
-    let readLength = Math.min(len, available);
+    const len = cend - cstart;
+    const chunkBuffer = new ArrayBuffer(blockSize);
+
+    const readLength = Math.min(len, available);
 
     new Uint8Array(chunkBuffer).set(
       new Uint8Array(bufferView.buffer, off, readLength),
@@ -125,8 +123,7 @@ export class File {
   ) {}
 
   bufferChunks(chunks: Block[]) {
-    for (let i = 0; i < chunks.length; i++) {
-      let chunk = chunks[i];
+    for (const chunk of chunks) {
       this.buffer.set(chunk.pos, chunk);
     }
   }
@@ -171,9 +168,9 @@ export class File {
   }
 
   load(indexes: number[] /* TODO */) {
-    let status = indexes.reduce(
+    const status = indexes.reduce(
       (acc, b) => {
-        let inMemory = this.buffer.get(b);
+        const inMemory = this.buffer.get(b);
         if (inMemory) {
           acc.chunks.push(inMemory);
         } else {
@@ -198,7 +195,7 @@ export class File {
     position: number
   ) {
     // console.log('reading', this.filename, offset, length, position);
-    let buffer = bufferView.buffer;
+    const buffer = bufferView.buffer;
 
     if (length <= 0) {
       return 0;
@@ -208,7 +205,7 @@ export class File {
       return 0;
     }
     if (position >= this.meta.size!) {
-      let view = new Uint8Array(buffer, offset);
+      const view = new Uint8Array(buffer, offset);
       for (let i = 0; i < length; i++) {
         view[i] = 0;
       }
@@ -217,20 +214,20 @@ export class File {
     }
 
     position = Math.max(position, 0);
-    let dataLength = Math.min(length, this.meta.size! - position);
+    const dataLength = Math.min(length, this.meta.size! - position);
 
-    let start = position;
-    let end = position + dataLength;
+    const start = position;
+    const end = position + dataLength;
 
-    let indexes = getBoundaryIndexes(this.meta.blockSize!, start, end);
+    const indexes = getBoundaryIndexes(this.meta.blockSize!, start, end);
 
-    let chunks = this.load(indexes);
-    let readBuffer = readChunks(chunks, start, end);
+    const chunks = this.load(indexes);
+    const readBuffer = readChunks(chunks, start, end);
 
     if (buffer.byteLength - offset < readBuffer.byteLength) {
       throw new Error("Buffer given to `read` is too small");
     }
-    let view = new Uint8Array(buffer);
+    const view = new Uint8Array(buffer);
     view.set(new Uint8Array(readBuffer), offset);
 
     // TODO: I don't need to do this. `unixRead` does this for us.
@@ -258,7 +255,7 @@ export class File {
       // Just write the whole thing and we'll get the first block
       // first.
 
-      let pageSize = getPageSize(
+      const pageSize = getPageSize(
         new Uint8Array(bufferView.buffer, bufferView.byteOffset + offset)
       );
 
@@ -276,7 +273,7 @@ export class File {
       this.setattr({ blockSize: pageSize });
     }
 
-    let buffer = bufferView.buffer;
+    const buffer = bufferView.buffer;
 
     if (length <= 0) {
       return 0;
@@ -290,7 +287,7 @@ export class File {
 
     length = Math.min(length, buffer.byteLength - offset);
 
-    let writes = writeChunks(
+    const writes = writeChunks(
       new Uint8Array(buffer, offset, length),
       this.meta.blockSize!,
       position,
@@ -299,7 +296,7 @@ export class File {
 
     // Find any partial chunks and read them in and merge with
     // existing data
-    let { partialWrites, fullWrites } = writes.reduce(
+    const { partialWrites, fullWrites } = writes.reduce(
       (state, write) => {
         if (write.length !== this.meta.blockSize) {
           state.partialWrites.push(write);
@@ -319,9 +316,9 @@ export class File {
       reads = this.load(partialWrites.map((w) => w.pos));
     }
 
-    let allWrites: Block[] = fullWrites.concat(
+    const allWrites: Block[] = fullWrites.concat(
       reads.map((read) => {
-        let write = partialWrites.find((w) => w.pos === read.pos) as Block;
+        const write = partialWrites.find((w) => w.pos === read.pos) as Block;
 
         // MuTatIoN!
         new Uint8Array(read.data).set(
@@ -345,7 +342,7 @@ export class File {
   async readIfFallback() {
     if (this.ops.readIfFallback) {
       // Reset the meta
-      let meta = await this.ops.readIfFallback();
+      const meta = await this.ops.readIfFallback();
       this.meta = meta || { size: 0 };
     }
   }
@@ -389,16 +386,16 @@ export class File {
       // We need to handle page size changes which restructures the
       // whole db. We check if the page size is being written and
       // handle it
-      let first = this.buffer.get(0);
+      const first = this.buffer.get(0);
       if (first) {
-        let pageSize = getPageSize(new Uint8Array(first.data));
+        const pageSize = getPageSize(new Uint8Array(first.data));
 
         if (pageSize !== this.meta.blockSize) {
           // The page size changed! We need to reflect that in our
           // storage. We need to restructure all pending writes and
           // change our page size so all future writes reflect the new
           // size.
-          let buffer = this.buffer;
+          const buffer = this.buffer;
           this.buffer = new Map();
 
           // We take all pending writes, concat them into a single
@@ -415,12 +412,12 @@ export class File {
           // data in the pending buffer, and we don't have to worry
           // about overwriting anything.
 
-          let writes = [...buffer.values()];
-          let totalSize = writes.length * this.meta.blockSize!;
-          let buf = new ArrayBuffer(totalSize);
-          let view = new Uint8Array(buf);
+          const writes = [...buffer.values()];
+          const totalSize = writes.length * this.meta.blockSize!;
+          const buf = new ArrayBuffer(totalSize);
+          const view = new Uint8Array(buf);
 
-          for (let write of writes) {
+          for (const write of writes) {
             view.set(new Uint8Array(write.data), write.pos);
           }
 

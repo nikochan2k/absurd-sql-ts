@@ -3,8 +3,8 @@ export function getPageSize(bufferView: Uint8Array) {
   // is stored as a 2 byte integer at the 16th byte. It's stored as
   // big-endian so the first byte is the larger one. Combine it into a
   // single integer.
-  let int1 = bufferView[16];
-  let int2 = bufferView[17];
+  const int1 = bufferView[16];
+  const int2 = bufferView[17];
   return (int1 << 8) + int2;
 }
 
@@ -13,8 +13,8 @@ export function isSafeToWrite(
   diskData: ArrayBufferLike
 ) {
   if (localData != null && diskData != null) {
-    let localView = new Uint8Array(localData);
-    let diskView = new Uint8Array(diskData);
+    const localView = new Uint8Array(localData);
+    const diskView = new Uint8Array(diskData);
 
     // See
     // https://github.com/sqlite/sqlite/blob/master/src/pager.c#L93-L96

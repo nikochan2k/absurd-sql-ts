@@ -72,18 +72,18 @@ class Persistance {
   // atomically)
 
   async readAll() {
-    let db = await this.getDb();
-    let blocks = new Map<number, ArrayBufferLike>();
+    const db = await this.getDb();
+    const blocks = new Map<number, ArrayBufferLike>();
 
-    let trans = db.transaction(["data"], "readonly");
-    let store = trans.objectStore("data");
+    const trans = db.transaction(["data"], "readonly");
+    const store = trans.objectStore("data");
 
     return new Promise<Map<number, ArrayBufferLike>>((resolve, reject) => {
       // Open a cursor and iterate through the entire file
-      let req = store.openCursor(IDBKeyRange.lowerBound(-1));
+      const req = store.openCursor(IDBKeyRange.lowerBound(-1));
       req.onerror = reject;
       req.onsuccess = (e) => {
-        let cursor = (e.target as any).result as IDBCursorWithValue;
+        const cursor = (e.target as any).result as IDBCursorWithValue;
         if (cursor) {
           blocks.set(cursor.key as number, cursor.value);
           cursor.continue();
@@ -99,15 +99,15 @@ class Persistance {
     cachedFirstBlock: ArrayBufferLike,
     hasLocked: boolean
   ) {
-    let db = await this.getDb();
+    const db = await this.getDb();
 
     // We need grab a readwrite lock on the db, and then read to check
     // to make sure we can write to it
-    let trans = db.transaction(["data"], "readwrite");
-    let store = trans.objectStore("data");
+    const trans = db.transaction(["data"], "readwrite");
+    const store = trans.objectStore("data");
 
     await new Promise<void>((resolve, reject) => {
-      let req = store.get(0);
+      const req = store.get(0);
       req.onsuccess = (e) => {
         if (hasLocked) {
           if (!isSafeToWrite(req.result, cachedFirstBlock)) {
@@ -121,7 +121,7 @@ class Persistance {
         }
 
         // Flush all the writes
-        for (let write of writes) {
+        for (const write of writes) {
           store.put(write.value, write.key);
         }
 
@@ -177,7 +177,7 @@ export class FileOpsFallback implements Ops {
   }
 
   delete() {
-    let req = globalThis.indexedDB.deleteDatabase(this.dbName);
+    const req = globalThis.indexedDB.deleteDatabase(this.dbName);
     req.onerror = () => {
       console.warn(`Deleting ${this.filename} database failed`);
     };
@@ -202,9 +202,9 @@ export class FileOpsFallback implements Ops {
   }
 
   readMeta() {
-    let metaBlock = this.blocks.get(-1) as FileAttr;
+    const metaBlock = this.blocks.get(-1) as FileAttr;
     if (metaBlock) {
-      let block = this.blocks.get(0) as ArrayBufferLike;
+      const block = this.blocks.get(0) as ArrayBufferLike;
 
       return {
         size: metaBlock.size,
@@ -220,8 +220,8 @@ export class FileOpsFallback implements Ops {
   }
 
   readBlocks(positions: number[], blockSize: number) {
-    let res: Block[] = [];
-    for (let pos of positions) {
+    const res: Block[] = [];
+    for (const pos of positions) {
       res.push({
         pos,
         data: this.blocks.get(positionToKey(pos, blockSize)) as ArrayBufferLike,
