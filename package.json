@@ -3,7 +3,7 @@
   "version": "0.0.56",
   "main": "./dist/index.js",
   "scripts": {
-    "clean": "rimraf ./lib ./tsconfig.tsbuildinfo /dist",
+    "clean": "rimraf ./dist ./lib ./tsconfig.tsbuildinfo",
     "compile": "tsc",
     "copy": "ncp src/examples lib/examples",
     "build": "npm-run-all clean compile copy",
@@ -16,7 +16,10 @@
     "webpack": "cd lib/examples && webpack serve",
     "serve": "npm-run-all build webpack",
     "npm-version": "npm version patch",
+    "npm-publish-dry-run": "npm publish --dry-run",
     "npm-publish": "npm publish",
+    "sanitize": "rimraf ./lib/examples",
+    "release-dry-run": "npm-run-all dist sanitize npm-publish-dry-run",
     "release": "npm-run-all dist npm-version npm-publish"
   },
   "devDependencies": {
@@ -41,11 +44,18 @@
     "worker-loader": "^3.0.8"
   },
   "files": [
-    "README.md",
-    "dist/**/*",
-    "lib/**/*"
+    "dist",
+    "lib"
   ],
   "dependencies": {
     "safari-14-idb-fix": "^3.0.0"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nikochan2k/absurd-sql-ts.git"
+  },
+  "bugs": {
+    "url": "https://github.com/nikochan2k/absurd-sql-ts/issues"
+  },
+  "homepage": "https://github.com/nikochan2k/absurd-sql-ts#readme"
 }
