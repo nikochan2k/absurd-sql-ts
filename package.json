@@ -1,6 +1,6 @@
 {
   "name": "absurd-sql-ts",
-  "version": "0.0.56",
+  "version": "0.0.57",
   "main": "./dist/index.js",
   "scripts": {
     "clean": "rimraf ./dist ./lib ./tsconfig.tsbuildinfo",
